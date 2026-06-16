@@ -4,7 +4,7 @@ from pathlib import Path
 
 from yuanbao_agent_platform.models import BugReport, ResultStatus, Scenario, TriggerType
 from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
-from yuanbao_agent_platform.vlm import MockVisionAgentClient
+from yuanbao_agent_platform.vlm import MockVisionAgentClient, OpenAICompatibleVisionAgentClient
 
 
 class YuanbaoTestingPlatformTest(unittest.TestCase):
@@ -54,7 +54,7 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
             TriggerType.CI,
         )
 
-        results = self.platform.run_queued_tasks()
+        results = self.platform.run_queued_tasks(max_workers=1)
         self.assertEqual(results[0]["task_id"], dev.task_id)
         self.assertEqual(results[1]["task_id"], integration.task_id)
 
@@ -92,16 +92,35 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
         self.assertIn("BACKEND_AUTOMATION", automation_types)
 
     def test_vlm_status_uses_confidence_and_visual_mismatch_not_keywords(self):
-        client = MockVisionAgentClient()
+        with TemporaryDirectory() as tmpdir:
+            client = MockVisionAgentClient(artifact_root=str(Path(tmpdir) / "screenshots"))
+            plan = self.platform.case_converter.to_agent_plan(
+                self.platform.case_converter.convert("case-vlm-001", "登录后进入我的页面，点击设置，验证状态。")
+            )
+
+            fail_run = client.run_plan(
+                plan,
+                {"task_id": "task-vlm-artifact", "visual_mismatch_count": 1, "vision_confidence": 0.95},
+            )
+            unknown_run = client.run_plan(plan, {"task_id": "task-vlm-unknown", "vision_confidence": 0.4})
+
+            self.assertEqual(fail_run.status, ResultStatus.FAIL)
+            self.assertEqual(unknown_run.status, ResultStatus.UNKNOWN)
+            self.assertTrue(fail_run.screenshots)
+            self.assertTrue(Path(fail_run.screenshots[0]).exists())
+            self.assertIn("task-vlm-artifact", fail_run.screenshots[0])
+
+    def test_openai_compatible_vlm_client_is_explicit_integration_boundary(self):
+        client = OpenAICompatibleVisionAgentClient(
+            base_url="https://internal-vlm.example.test/v1",
+            model="vision-gui-agent",
+        )
         plan = self.platform.case_converter.to_agent_plan(
-            self.platform.case_converter.convert("case-vlm-001", "登录后进入我的页面，点击设置，验证状态。")
+            self.platform.case_converter.convert("case-vlm-boundary", "点击设置并验证状态。")
         )
 
-        fail_run = client.run_plan(plan, {"visual_mismatch_count": 1, "vision_confidence": 0.95})
-        unknown_run = client.run_plan(plan, {"vision_confidence": 0.4})
-
-        self.assertEqual(fail_run.status, ResultStatus.FAIL)
-        self.assertEqual(unknown_run.status, ResultStatus.UNKNOWN)
+        with self.assertRaises(NotImplementedError):
+            client.run_plan(plan, {})
 
     def test_demo_exposes_platform_level_policy_writeback_and_metrics(self):
         result = self.platform.run_demo()

@@ -9,3 +9,5 @@ dist/
 *.egg-info/
 data/*.db
 data/*.db-*
+artifacts/screenshots/**/*.png
+!artifacts/screenshots/.gitkeep

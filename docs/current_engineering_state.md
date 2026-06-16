@@ -9,6 +9,7 @@
 - 多场景并发调度
 - 系统适配器注册
 - SQLite 持久化
+- Mock 执行截图证据
 - 验收报告自检
 - PRD 知识库召回与测试点生成
 
@@ -32,7 +33,8 @@ PRD / 手工用例 / BUG / CI Webhook
 | --- | --- | --- |
 | 语义化 LLM Mock | `src/yuanbao_agent_platform/llm.py` | 使用 `SemanticConceptMapper` 模拟模糊表达泛化，例如“叮叮咚咚老打扰”映射为通知类功能 |
 | PRD LLM Planner | `src/yuanbao_agent_platform/llm.py`、`agents.py` | PRD 测试点生成也接入 `PRDPlanningLLM`，不再停留在关键词函数 |
-| VLM Adapter | `src/yuanbao_agent_platform/vlm.py` | 基于视觉置信度、断言置信度和视觉不一致信号输出 PASS/FAIL/UNKNOWN |
+| VLM Adapter | `src/yuanbao_agent_platform/vlm.py` | 基于视觉置信度、断言置信度和视觉不一致信号输出 PASS/FAIL/UNKNOWN，并生成 `artifacts/screenshots/{task_id}/step-{n}-observe.png` 证据文件 |
+| 真实 VLM 接口骨架 | `src/yuanbao_agent_platform/vlm.py` | `OpenAICompatibleVisionAgentClient` 预留 OpenAI-compatible / 内部 VLM 服务接入点，不在 MVP 中发起网络调用 |
 | 并发调度 | `src/yuanbao_agent_platform/scheduler.py` | 使用 `ThreadPoolExecutor` 模拟 worker 池，支持大规模混合任务执行 |
 | SQLite 持久化 | `src/yuanbao_agent_platform/storage.py` | 持久化任务、执行结果、回写记录和验收报告 |
 | 系统适配器 | `src/yuanbao_agent_platform/adapters.py` | 提供 CI/CD、缺陷、需求管理三个 InMemory Adapter |
@@ -85,12 +87,20 @@ python -m yuanbao_agent_platform.api
 - `POST /webhooks/bug-status-changed`
 - `POST /webhooks/ci-finished`
 
+Mock GUI Agent 执行后会生成截图证据：
+
+```powershell
+Get-ChildItem -Recurse artifacts/screenshots
+```
+
+这些 PNG 文件证明 trace 中的 `screenshots` 字段指向真实可打开的工程产物；它们仍是 Mock 产物，不等同于真实设备截图流。
+
 ## 仍未完成的生产级能力
 
 - 未接真实公司 GUI Agent / VLM 服务
 - 未接真实 Android/iOS 设备池
 - 未接真实 CI/CD、缺陷系统、需求系统 endpoint
-- 未实现真实截图、录屏、点击、滑动
+- 未接真实设备截图流、录屏、点击、滑动
 - 未实现鉴权、多租户、权限隔离
 
 当前工程的价值是证明平台主链路、接口边界和验收证据均已具备。进入公司环境后，重点替换 Adapter，而不是重写调度、转换、回写和验收逻辑。

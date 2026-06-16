@@ -7,6 +7,7 @@
 - BUG 回归三态回写模型
 - PRD + 知识库混合召回生成测试点
 - 后台自动化执行器占位实现
+- Mock GUI Agent 执行截图证据落盘
 
 ## 快速运行
 
@@ -83,6 +84,14 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/webhooks/ci-finished -
 Invoke-RestMethod http://127.0.0.1:8000/acceptance/report
 ```
 
+查看 Mock GUI Agent 执行证据：
+
+```powershell
+Get-ChildItem -Recurse artifacts/screenshots
+```
+
+说明：`artifacts/screenshots/{task_id}/step-{n}-observe.png` 是 MVP 生成的可追溯执行证据文件，用于模拟真实设备/VLM 服务返回的截图产物形态；它不是物理设备实时截图。
+
 ## 运行测试
 
 ```powershell
@@ -96,6 +105,7 @@ python -m unittest discover -s tests
 - `src/yuanbao_agent_platform/agents.py`：用例理解、BUG 解析、PRD 测试点生成
 - `src/yuanbao_agent_platform/scheduler.py`：多场景调度、资源、重试、隔离
 - `src/yuanbao_agent_platform/executors.py`：GUI Agent 与后台自动化执行器模拟
+- `src/yuanbao_agent_platform/vlm.py`：VLM/GUI Agent 客户端协议、Mock 截图证据、真实服务接口骨架
 - `src/yuanbao_agent_platform/platform.py`：平台门面，串联端到端流程
 - `src/yuanbao_agent_platform/storage.py`：SQLite 持久化
 - `src/yuanbao_agent_platform/acceptance.py`：验收报告生成
