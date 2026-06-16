@@ -11,71 +11,47 @@ from yuanbao_agent_platform.models import (
     ExecutionResult,
     ExecutionTrace,
     ResultStatus,
-    TestCase,
 )
+from yuanbao_agent_platform.vlm import MockVisionAgentClient, VisionAgentClient
 
 
 class GuiAgentSimulator:
-    """Local deterministic stand-in for the existing vision-based GUI Agent."""
+    """Adapter for the existing vision-based GUI Agent.
 
-    def __init__(self, converter: NaturalLanguageCaseConverter):
+    The default client is a deterministic mock, but the interface matches the
+    production boundary where a VLM/GUI Agent service would execute the plan.
+    """
+
+    def __init__(
+        self,
+        converter: NaturalLanguageCaseConverter,
+        vision_client: VisionAgentClient = None,
+    ):
         self._converter = converter
+        self._vision_client = vision_client or MockVisionAgentClient()
 
     def execute(self, job: ExecutionJob) -> ExecutionResult:
         started = time()
         plan = self._converter.to_agent_plan(job.task.case)
-        actions = []
-        confidence = 0.96
-
-        for index, step in enumerate(plan.steps, start=1):
-            target = step["visual_target"]
-            actions.append(
-                {
-                    "observe": f"screen-{index}.png",
-                    "think": f"寻找语义目标: {target}",
-                    "act": step["intent"],
-                    "verify": step["success_criteria"],
-                    "mode": "vision_based",
-                }
-            )
-            if "无法判定" in target or "不明确" in target:
-                confidence = 0.45
-
-        status = self._decide_status(job.task.case, confidence)
-        reason = self._reason(status, job.task.case)
+        run = self._vision_client.run_plan(plan, job.task.metadata)
         trace = ExecutionTrace(
             trace_id=f"trace-{uuid4().hex[:8]}",
-            actions=actions,
-            screenshots=[action["observe"] for action in actions],
-            logs=["GUI Agent 使用视觉语义目标执行，未依赖 XPath/ResourceId/坐标"],
-            confidence=confidence,
+            actions=run.actions,
+            screenshots=run.screenshots,
+            logs=["GUI Agent 通过VLM视觉语义目标执行，未依赖 XPath/ResourceId/坐标"],
+            confidence=run.confidence,
         )
         return ExecutionResult(
             task_id=job.task.task_id,
             case_id=job.task.case.case_id,
-            status=status,
-            reason=reason,
+            status=run.status,
+            reason=run.reason,
             trace=trace,
             duration_seconds=round(time() - started, 4),
-            confidence=confidence,
+            confidence=run.confidence,
             writeback_target=job.task.metadata.get("writeback_target"),
             metadata={"plan_id": plan.plan_id, "resource": job.resource, **job.task.metadata},
         )
-
-    def _decide_status(self, test_case: TestCase, confidence: float) -> ResultStatus:
-        raw = " ".join([test_case.title] + [step.target_semantics for step in test_case.steps])
-        if confidence < 0.6:
-            return ResultStatus.UNKNOWN
-        if "失败" in raw and "验证" not in raw:
-            return ResultStatus.FAIL
-        return ResultStatus.PASS
-
-    def _reason(self, status: ResultStatus, test_case: TestCase) -> str:
-        if status == ResultStatus.PASS:
-            return "视觉执行与断言验证通过"
-        if status == ResultStatus.FAIL:
-            return "页面明确展示与预期相反的结果"
-        return "断言不明确或视觉置信度不足"
 
 
 class BackendAutomationExecutor:
@@ -90,10 +66,7 @@ class BackendAutomationExecutor:
             }
             for step in job.task.case.steps
         ]
-        status = ResultStatus.PASS
-        if job.task.case.metadata.get("force_backend_failure"):
-            status = ResultStatus.FAIL
-
+        status = ResultStatus.FAIL if job.task.case.metadata.get("force_backend_failure") else ResultStatus.PASS
         trace = ExecutionTrace(
             trace_id=f"trace-{uuid4().hex[:8]}",
             actions=actions,

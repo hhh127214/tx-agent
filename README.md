@@ -34,6 +34,9 @@ python -m yuanbao_agent_platform.api
 - `POST /tasks/manual`
 - `POST /tasks/run`
 - `POST /demo`
+- `POST /demo/large-scale`
+- `POST /webhooks/bug-status-changed`
+- `POST /webhooks/ci-finished`
 
 示例：
 
@@ -51,6 +54,24 @@ Invoke-RestMethod http://127.0.0.1:8000/scheduler/policy
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/demo
+```
+
+运行大规模混合调度 Demo：
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/demo/large-scale -ContentType "application/json" -Body '{"total":10000,"max_workers":32}'
+```
+
+模拟缺陷状态变更触发：
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/webhooks/bug-status-changed -ContentType "application/json" -Body '{"bug_id":"BUG-1024","title":"关闭通知开关后重新进入设置页仍显示开启","status":"待回归","severity":"P1","version":"8.1.1","steps":["登录账号","进入我的页面","点击设置","关闭通知开关","退出设置页后重新进入"],"expected":"通知开关保持关闭","actual":"通知开关重新变为开启"}'
+```
+
+模拟 CI 构建完成触发：
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/webhooks/ci-finished -ContentType "application/json" -Body '{"pipeline_id":"pipeline-001","commit_sha":"abc123","artifact":"yuanbao-debug.apk","run_immediately":true}'
 ```
 
 ## 运行测试

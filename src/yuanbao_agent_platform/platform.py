@@ -23,7 +23,7 @@ from yuanbao_agent_platform.scheduler import ExecutionScheduler, QuarantineManag
 
 
 class YuanbaoTestingPlatform:
-    def __init__(self):
+    def __init__(self, devices: int = 20, containers: int = 20):
         self.case_converter = NaturalLanguageCaseConverter()
         self.bug_agent = BugRegressionAgent(self.case_converter)
         self.prd_agent = PRDTestDesignAgent()
@@ -36,7 +36,7 @@ class YuanbaoTestingPlatform:
         self.quarantine = QuarantineManager()
         self.scheduler = ExecutionScheduler(
             router=router,
-            resource_manager=ResourceManager(devices=3, containers=2),
+            resource_manager=ResourceManager(devices=devices, containers=containers),
             quarantine_manager=self.quarantine,
             analyzer=ResultAnalyzer(),
         )
@@ -54,8 +54,11 @@ class YuanbaoTestingPlatform:
         case_id: str,
         text: str,
         trigger_type: TriggerType = TriggerType.MANUAL,
+        metadata: Dict[str, Any] = None,
     ) -> Task:
         test_case = self.case_converter.convert(case_id, text)
+        if metadata:
+            test_case.metadata.update(metadata)
         return self.submit_case(scenario, test_case, trigger_type)
 
     def submit_case(self, scenario: Scenario, test_case: TestCase, trigger_type: TriggerType) -> Task:
@@ -68,7 +71,13 @@ class YuanbaoTestingPlatform:
         )
         return self.scheduler.submit(task)
 
-    def submit_backend_case(self, scenario: Scenario, title: str, steps: Iterable[str]) -> Task:
+    def submit_backend_case(
+        self,
+        scenario: Scenario,
+        title: str,
+        steps: Iterable[str],
+        metadata: Dict[str, Any] = None,
+    ) -> Task:
         test_case = TestCase(
             case_id=f"backend-{abs(hash(title)) % 100000}",
             title=title,
@@ -83,6 +92,7 @@ class YuanbaoTestingPlatform:
                 for index, step in enumerate(steps, start=1)
             ],
             source="backend_generation",
+            metadata=metadata or {},
         )
         return self.submit_case(scenario, test_case, TriggerType.CI if scenario == Scenario.DEV_SELF_TEST else TriggerType.MANUAL)
 
@@ -94,13 +104,14 @@ class YuanbaoTestingPlatform:
             trigger_type=TriggerType.STATUS_CHANGE,
             source="bug_system",
             metadata={
+                **regression_case.metadata,
                 "writeback_target": "bug_system",
                 "bug_id": bug.bug_id,
                 "severity": bug.severity,
             },
         )
         self.scheduler.submit(task)
-        results = self.scheduler.run_until_idle()
+        results = self.scheduler.run_until_idle_concurrent(max_workers=8)
         result = next(item for item in reversed(results) if item.task_id == task.task_id)
         writeback = self._writeback_result(result)
         return BugRegressionResult(
@@ -119,11 +130,10 @@ class YuanbaoTestingPlatform:
         )
 
     def generate_prd_test_points(self, prd_id: str, prd_text: str) -> Dict[str, Any]:
-        generation = self.prd_agent.generate(prd_id, prd_text)
-        return asdict(generation)
+        return asdict(self.prd_agent.generate(prd_id, prd_text))
 
-    def run_queued_tasks(self) -> List[Dict[str, Any]]:
-        results = self.scheduler.run_until_idle()
+    def run_queued_tasks(self, max_workers: int = 8) -> List[Dict[str, Any]]:
+        results = self.scheduler.run_until_idle_concurrent(max_workers=max_workers)
         for result in results:
             self._writeback_result(result)
         return [asdict(result) for result in results]
@@ -134,7 +144,8 @@ class YuanbaoTestingPlatform:
             "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
         )
         scenario_examples = self._submit_four_scenario_examples()
-        queued_results = self.run_queued_tasks()
+        queued_results = self.run_queued_tasks(max_workers=8)
+        queued_run_summary = self.scheduler.run_summary()
         bug_result = self.run_bug_regression(
             BugReport(
                 bug_id="BUG-1024",
@@ -147,7 +158,6 @@ class YuanbaoTestingPlatform:
                 actual="通知开关重新变为开启",
             )
         )
-        metrics = self.metrics.summarize(self.scheduler.submitted_tasks, self.scheduler.results)
         prd = self.generate_prd_test_points(
             "PRD-2026-001",
             "用户可在设置页关闭通知开关。关闭后不再发送消息推送。用户重新登录、重启 App 或切换网络后状态应保持不变。若接口保存失败，应提示稍后重试，并保持原状态。",
@@ -156,48 +166,79 @@ class YuanbaoTestingPlatform:
             "manual_case_conversion": manual,
             "scenario_examples": scenario_examples,
             "scheduler_policy": self.scheduler.policy_snapshot(),
+            "scheduler_run_summary": queued_run_summary,
+            "latest_scheduler_run_summary": self.scheduler.run_summary(),
             "queue_snapshot": self.scheduler.queue_snapshot(),
             "queued_results": queued_results,
             "prd_test_points": prd,
             "bug_regression_result": asdict(bug_result),
             "writebacks": self.integrations.snapshot(),
-            "metrics": metrics,
+            "metrics": self.metrics.summarize(self.scheduler.submitted_tasks, self.scheduler.results),
             "integration_config": integration_config(),
             "quarantine": self.quarantine.snapshot(),
         }
 
+    def run_large_scale_demo(self, total: int = 10000, max_workers: int = 32) -> Dict[str, Any]:
+        for index in range(total):
+            scenario = [Scenario.INTEGRATION_BATCH, Scenario.DEV_SELF_TEST, Scenario.REQUIREMENT_TEST, Scenario.BUG_REGRESSION][index % 4]
+            metadata = {}
+            case_id = f"case-large-{index}"
+            if scenario == Scenario.BUG_REGRESSION:
+                metadata = {"severity": "P1", "bug_id": f"BUG-LS-{index}"}
+            if index % 97 == 0:
+                metadata["force_status"] = "UNKNOWN"
+                metadata["vision_confidence"] = 0.42
+                case_id = "case-problem-vision-low-confidence"
+            self.submit_manual_case(
+                scenario=scenario,
+                case_id=case_id,
+                text="登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
+                trigger_type=TriggerType.SCHEDULED if scenario == Scenario.INTEGRATION_BATCH else TriggerType.WEBHOOK,
+                metadata=metadata,
+            )
+
+        results = self.scheduler.run_until_idle_concurrent(max_workers=max_workers, max_iterations=total * 2)
+        return {
+            "requested_tasks": total,
+            "produced_results": len(results),
+            "scheduler_policy": self.scheduler.policy_snapshot()["scale"],
+            "scheduler_run_summary": self.scheduler.run_summary(),
+            "queue_snapshot": self.scheduler.queue_snapshot(),
+            "metrics": self.metrics.summarize(self.scheduler.submitted_tasks, self.scheduler.results),
+            "quarantine": self.quarantine.snapshot(),
+            "sample_results": [asdict(result) for result in results[:5]],
+        }
+
     def _submit_four_scenario_examples(self) -> List[Dict[str, Any]]:
-        tasks = []
-        tasks.append(
+        tasks = [
             self.submit_manual_case(
                 Scenario.INTEGRATION_BATCH,
                 "case-integration-001",
                 "集成测试批量执行：登录后进入我的页面，点击设置，检查通知开关入口可见。",
                 TriggerType.SCHEDULED,
-            )
-        )
-        self.submit_manual_case(
-            Scenario.DEV_SELF_TEST,
-            "case-notification-001",
-            "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
-            TriggerType.CI,
-        )
-        tasks.append(self.scheduler.submitted_tasks[-1])
-        tasks.append(
+                metadata={"batch_id": "batch-integration-001"},
+            ),
+            self.submit_manual_case(
+                Scenario.DEV_SELF_TEST,
+                "case-notification-001",
+                "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
+                TriggerType.CI,
+                metadata={"pipeline_id": "pipeline-001", "ci_blocking": True},
+            ),
             self.submit_manual_case(
                 Scenario.REQUIREMENT_TEST,
                 "case-requirement-001",
                 "需求测试：进入设置页，关闭通知开关，模拟保存失败后验证提示稍后重试并保持原状态。",
                 TriggerType.WEBHOOK,
-            )
-        )
-        tasks.append(
+                metadata={"requirement_id": "REQ-001"},
+            ),
             self.submit_backend_case(
                 Scenario.DEV_SELF_TEST,
                 "开发自测：通知设置保存接口校验",
                 ["调用保存通知设置接口", "查询用户设置状态", "验证状态为关闭"],
-            )
-        )
+                metadata={"pipeline_id": "pipeline-001"},
+            ),
+        ]
         return [
             {
                 "scenario": task.scenario.value,

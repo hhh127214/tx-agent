@@ -87,6 +87,43 @@ class YuanbaoApi:
         if method == "POST" and path == "/demo":
             return 200, self._platform.run_demo()
 
+        if method == "POST" and path == "/demo/large-scale":
+            return 200, self._platform.run_large_scale_demo(
+                total=int(payload.get("total", 10000)),
+                max_workers=int(payload.get("max_workers", 32)),
+            )
+
+        if method == "POST" and path == "/webhooks/bug-status-changed":
+            bug = BugReport(
+                bug_id=payload["bug_id"],
+                title=payload["title"],
+                status=payload.get("status", "待回归"),
+                severity=payload.get("severity", "P1"),
+                version=payload.get("version", ""),
+                steps=payload["steps"],
+                expected=payload["expected"],
+                actual=payload.get("actual", ""),
+                environment=payload.get("environment", ""),
+                attachments=payload.get("attachments", []),
+            )
+            return 202, {"trigger": "bug_status_changed", "regression": asdict(self._platform.run_bug_regression(bug))}
+
+        if method == "POST" and path == "/webhooks/ci-finished":
+            task = self._platform.submit_manual_case(
+                Scenario.DEV_SELF_TEST,
+                payload.get("case_id", f"ci-{payload['pipeline_id']}"),
+                payload.get("case_text", "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。"),
+                TriggerType.CI,
+                metadata={
+                    "pipeline_id": payload["pipeline_id"],
+                    "commit_sha": payload.get("commit_sha"),
+                    "artifact": payload.get("artifact"),
+                    "ci_blocking": payload.get("ci_blocking", True),
+                },
+            )
+            results = self._platform.run_queued_tasks() if payload.get("run_immediately", True) else []
+            return 202, {"trigger": "ci_finished", "task": asdict(task), "results": results}
+
         return 404, {"error": "NOT_FOUND", "path": path}
 
 

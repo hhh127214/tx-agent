@@ -39,6 +39,51 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("bug_system", integrations["config"])
 
+    def test_webhook_endpoints(self):
+        api = YuanbaoApi()
+
+        status, bug_body = api.handle(
+            "POST",
+            "/webhooks/bug-status-changed",
+            {
+                "bug_id": "BUG-1024",
+                "title": "关闭通知开关后重新进入设置页仍显示开启",
+                "status": "待回归",
+                "severity": "P1",
+                "version": "8.1.1",
+                "steps": ["登录账号", "进入我的页面", "点击设置", "关闭通知开关", "退出设置页后重新进入"],
+                "expected": "通知开关保持关闭",
+                "actual": "通知开关重新变为开启",
+            },
+        )
+        self.assertEqual(status, 202)
+        self.assertEqual(bug_body["trigger"], "bug_status_changed")
+
+        status, ci_body = api.handle(
+            "POST",
+            "/webhooks/ci-finished",
+            {
+                "pipeline_id": "pipeline-001",
+                "commit_sha": "abc123",
+                "artifact": "yuanbao-debug.apk",
+                "run_immediately": True,
+            },
+        )
+        self.assertEqual(status, 202)
+        self.assertEqual(ci_body["trigger"], "ci_finished")
+        self.assertTrue(ci_body["results"])
+
+    def test_large_scale_endpoint(self):
+        status, body = YuanbaoApi().handle(
+            "POST",
+            "/demo/large-scale",
+            {"total": 100, "max_workers": 8},
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(body["requested_tasks"], 100)
+        self.assertEqual(body["scheduler_run_summary"]["mode"], "thread_pool_worker")
+
 
 if __name__ == "__main__":
     unittest.main()

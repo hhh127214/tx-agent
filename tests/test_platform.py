@@ -17,6 +17,8 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
         plan = converted["agent_plan"]
         self.assertEqual(plan["context"]["execution_mode"], "VISION_BASED_GUI_AGENT")
         self.assertIn("selector_policy", plan["context"])
+        self.assertEqual(plan["context"]["planning_mode"], "LLM_PLANNED")
+        self.assertEqual(converted["ir"]["planner_provider"], "mock_llm")
         serialized = str(plan)
         self.assertNotIn("XPath", serialized)
         self.assertNotIn("ResourceId", serialized)
@@ -82,6 +84,8 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
         self.assertIn("scheduler_policy", result)
         self.assertIn("scale", result["scheduler_policy"])
         self.assertIn("metrics", result)
+        self.assertEqual(result["scheduler_run_summary"]["mode"], "thread_pool_worker")
+        self.assertGreaterEqual(result["scheduler_run_summary"]["max_workers"], 2)
         self.assertIn("bug_replacement_rate", result["metrics"])
         self.assertIn("false_positive_rate", result["metrics"])
         self.assertIn("false_negative_rate", result["metrics"])
@@ -95,6 +99,16 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
 
         writeback_targets = {item["writeback_target"] for item in result["queued_results"]}
         self.assertNotIn(None, writeback_targets)
+
+    def test_large_scale_demo_uses_worker_pool_and_quarantine(self):
+        result = self.platform.run_large_scale_demo(total=200, max_workers=16)
+
+        self.assertEqual(result["requested_tasks"], 200)
+        self.assertEqual(result["scheduler_run_summary"]["mode"], "thread_pool_worker")
+        self.assertEqual(result["scheduler_run_summary"]["max_workers"], 16)
+        self.assertGreaterEqual(result["produced_results"], 200)
+        self.assertIn("BUG_REGRESSION", result["metrics"]["scenario_counts"])
+        self.assertTrue(result["quarantine"])
 
 
 if __name__ == "__main__":
