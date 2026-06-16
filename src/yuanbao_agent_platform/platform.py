@@ -26,7 +26,13 @@ from yuanbao_agent_platform.storage import SQLiteStore
 
 
 class YuanbaoTestingPlatform:
-    def __init__(self, devices: int = 20, containers: int = 20, db_path: str = None):
+    def __init__(
+        self,
+        devices: int = 20,
+        containers: int = 20,
+        db_path: str = None,
+        recover_pending: bool = False,
+    ):
         self.store = SQLiteStore(db_path=db_path)
         self.case_converter = NaturalLanguageCaseConverter()
         self.bug_agent = BugRegressionAgent(self.case_converter)
@@ -45,6 +51,8 @@ class YuanbaoTestingPlatform:
             quarantine_manager=self.quarantine,
             analyzer=ResultAnalyzer(),
         )
+        if recover_pending:
+            self.recover_pending_tasks()
 
     def convert_manual_case(self, case_id: str, text: str) -> Dict[str, Any]:
         test_case = self.case_converter.convert(case_id, text)
@@ -234,6 +242,15 @@ class YuanbaoTestingPlatform:
         report["storage"] = self.store.stats()
         return report
 
+    def recover_pending_tasks(self) -> Dict[str, Any]:
+        tasks = self.store.load_recoverable_tasks()
+        summary = self.scheduler.recover_tasks(tasks)
+        return {
+            **summary,
+            "loaded_from_store": len(tasks),
+            "queue_snapshot": self.scheduler.queue_snapshot(),
+        }
+
     def _submit_four_scenario_examples(self) -> List[Dict[str, Any]]:
         tasks = [
             self.submit_manual_case(
@@ -304,3 +321,5 @@ class YuanbaoTestingPlatform:
     def _persist_results(self, results) -> None:
         for result in results:
             self.store.save_result(result)
+        for task in self.scheduler.submitted_tasks:
+            self.store.save_task(task)

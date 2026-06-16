@@ -122,6 +122,29 @@ class ExecutionScheduler:
             self.submitted_tasks.append(task)
         return task
 
+    def recover_tasks(self, tasks: List[Task]) -> Dict[str, int]:
+        recovered = 0
+        skipped_duplicates = 0
+        with self._queue_lock:
+            known_task_ids = {task.task_id for task in self.submitted_tasks}
+            known_task_ids.update(
+                queued_task.task_id
+                for queue in self._queues.values()
+                for queued_task in queue
+            )
+            for task in tasks:
+                if task.task_id in known_task_ids:
+                    skipped_duplicates += 1
+                    continue
+                task.status = TaskStatus.PENDING
+                task.metadata["recovered_from_store"] = True
+                task = self._policy.apply(task)
+                self._queues[task.scenario].append(task)
+                self.submitted_tasks.append(task)
+                known_task_ids.add(task.task_id)
+                recovered += 1
+        return {"recovered": recovered, "skipped_duplicates": skipped_duplicates}
+
     def run_until_idle(self, max_iterations: int = 100) -> List[ExecutionResult]:
         produced: List[ExecutionResult] = []
         iterations = 0

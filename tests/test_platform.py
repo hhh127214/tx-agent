@@ -2,7 +2,7 @@ import unittest
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
-from yuanbao_agent_platform.models import BugReport, ResultStatus, Scenario, TriggerType
+from yuanbao_agent_platform.models import BugReport, ResultStatus, Scenario, TaskStatus, TriggerType
 from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
 from yuanbao_agent_platform.vlm import MockVisionAgentClient, OpenAICompatibleVisionAgentClient
 
@@ -180,6 +180,40 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
             self.assertGreaterEqual(stats["writebacks"], 5)
             self.assertGreaterEqual(stats["acceptance_reports"], 1)
             self.assertIn("storage", report)
+
+    def test_scheduler_explicitly_recovers_unfinished_tasks_from_sqlite(self):
+        with TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "platform.db")
+            first_platform = YuanbaoTestingPlatform(db_path=db_path)
+            submitted = first_platform.submit_manual_case(
+                Scenario.DEV_SELF_TEST,
+                "case-recover-001",
+                "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
+                TriggerType.CI,
+            )
+            submitted.status = TaskStatus.RUNNING
+            first_platform.store.save_task(submitted)
+
+            cold_platform = YuanbaoTestingPlatform(db_path=db_path)
+            self.assertEqual(sum(cold_platform.scheduler.queue_snapshot().values()), 0)
+
+            recovery = cold_platform.recover_pending_tasks()
+            self.assertEqual(recovery["loaded_from_store"], 1)
+            self.assertEqual(recovery["recovered"], 1)
+            self.assertEqual(sum(recovery["queue_snapshot"].values()), 1)
+
+            recovered_task = cold_platform.scheduler.submitted_tasks[0]
+            self.assertTrue(recovered_task.metadata["recovered_from_store"])
+            self.assertTrue(recovered_task.metadata["recovered_from_interrupted_run"])
+
+            results = cold_platform.run_queued_tasks(max_workers=1)
+            self.assertEqual(results[0]["task_id"], submitted.task_id)
+            self.assertEqual(results[0]["status"], ResultStatus.PASS.value)
+
+            finished_platform = YuanbaoTestingPlatform(db_path=db_path)
+            finished_recovery = finished_platform.recover_pending_tasks()
+            self.assertEqual(finished_recovery["loaded_from_store"], 0)
+            self.assertEqual(finished_recovery["recovered"], 0)
 
 
 if __name__ == "__main__":

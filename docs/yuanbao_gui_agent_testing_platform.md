@@ -33,9 +33,11 @@ flowchart TD
   A[任务来源<br/>PRD/需求/手工用例/BUG/CI-CD] --> B[任务接入层]
   B --> B1[API/Webhook/定时任务/手动触发]
   B --> B2[需求平台/缺陷平台/CI-CD 连接器]
+  B --> B3[InternalAdapterRegistry<br/>CI-CD/Bug/Requirement Adapter]
 
   B1 --> C[测试资产生成层]
   B2 --> C
+  B3 --> C
   C --> C1[Test Design Agent]
   C --> C2[Case Generation Agent]
   C --> C3[Natural Language Case Understanding Agent]
@@ -51,6 +53,7 @@ flowchart TD
   D --> D5[Timeout/Retry Controller]
   D --> D6[Case Quarantine Manager]
   D --> D7[Cost Optimizer]
+  D --> D8[Recovery Controller<br/>从 SQLite 恢复未完成任务]
 
   D --> E[执行层]
   E --> E1[GUI Execution Agent]
@@ -60,6 +63,8 @@ flowchart TD
   E --> E5[Container Pool]
   E --> E6[Environment Manager]
   E --> E7[Log/Screenshot/Video Collector]
+  E --> E8[OpenAICompatibleVisionAgentClient<br/>真实 VLM/GUI Agent 接入边界]
+  E --> E9[Mock Screenshot Artifacts<br/>artifacts/screenshots]
 
   E --> F[结果分析层]
   F --> F1[Verification Agent]
@@ -74,6 +79,12 @@ flowchart TD
   G --> G3[需求平台回写]
   G --> G4[CI-CD 状态回写]
   G --> G5[指标看板]
+
+  C --> H[SQLiteStore]
+  D --> H
+  F --> H
+  G --> H
+  H --> D8
 ```
 
 ### 2.1 关键模块职责
@@ -86,9 +97,13 @@ flowchart TD
 | Bug Understanding Agent | 解析 BUG 标题、描述、复现步骤、期望结果和附件 | RegressionCase |
 | Backend Automation Generation Agent | 复用后台自动化生成框架，生成或补全接口/后台用例 | BackendTestCase |
 | Execution Scheduler | 管理优先级、并发、资源、超时、重试和隔离 | ExecutionJob |
-| GUI Execution Agent | 基于视觉感知执行 UI 用例 | ExecutionTrace |
+| Recovery Controller | 显式从 SQLiteStore 恢复未完成任务，避免平台重启后队列丢失 | RecoveredTaskSummary |
+| GUI Execution Agent | 基于视觉感知执行 UI 用例，MVP 通过 Mock Screenshot Artifacts 生成可追溯证据 | ExecutionTrace |
+| OpenAICompatibleVisionAgentClient | 预留真实 VLM/GUI Agent 服务接入边界，不依赖 XPath/ResourceId/坐标 | VisionAgentRun |
 | Verification Agent | 根据断言和视觉证据判定 PASS/FAIL/UNKNOWN | ExecutionResult |
 | Failure Attribution Agent | 区分用例失败、Agent 失败、环境失败、产品缺陷 | FailureReason |
+| SQLiteStore | 持久化任务、执行结果、回写记录和验收报告，支持显式队列恢复 | Task/Result/Writeback |
+| InternalAdapterRegistry | 管理 CI/CD、缺陷系统、需求系统的可替换 Adapter | AdapterHealth |
 | Result Center | 汇总结果、证据、报告和外部系统回写状态 | Report/Writeback |
 
 ### 2.2 Multi-Agent 协作架构
@@ -96,6 +111,8 @@ flowchart TD
 ```mermaid
 flowchart LR
   U[用户/外部系统] --> O[Orchestrator Agent]
+  U --> AR[InternalAdapterRegistry]
+  AR --> O
   O --> TD[Test Design Agent]
   O --> CU[Case Understanding Agent]
   O --> BU[Bug Understanding Agent]
@@ -107,7 +124,12 @@ flowchart LR
   RG --> SCH
   CU --> SCH
   SCH --> GUI[GUI Execution Agent]
+  SCH --> RC[Recovery Controller]
+  RC --> DB[SQLiteStore]
+  DB --> SCH
   SCH --> BE[Backend Automation Executor]
+  GUI --> VC[OpenAICompatibleVisionAgentClient / MockVisionAgentClient]
+  VC --> SA[Mock Screenshot Artifacts]
   GUI --> VA[Verification Agent]
   BE --> VA
   VA --> FA[Failure Attribution Agent]

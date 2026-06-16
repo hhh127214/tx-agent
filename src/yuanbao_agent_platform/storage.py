@@ -6,9 +6,19 @@ from dataclasses import asdict, is_dataclass
 from enum import Enum
 from pathlib import Path
 from threading import Lock
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from yuanbao_agent_platform.config import PROJECT_ROOT
+from yuanbao_agent_platform.models import (
+    Assertion,
+    AutomationType,
+    Scenario,
+    Task,
+    TaskStatus,
+    TestCase,
+    TestStep,
+    TriggerType,
+)
 
 
 def jsonable(value: Any) -> Any:
@@ -86,6 +96,26 @@ class SQLiteStore:
             (json.dumps(jsonable(report), ensure_ascii=False),),
         )
 
+    def load_recoverable_tasks(self) -> List[Task]:
+        """Load unfinished tasks that were persisted but never produced a result.
+
+        RUNNING tasks are treated as interrupted and restored to PENDING so the
+        scheduler can safely retry them after an explicit recovery request.
+        """
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT payload
+                FROM tasks
+                WHERE status IN (?, ?)
+                  AND task_id NOT IN (SELECT task_id FROM execution_results)
+                ORDER BY priority DESC, created_at ASC
+                """,
+                (TaskStatus.PENDING.value, TaskStatus.RUNNING.value),
+            ).fetchall()
+        return [self._task_from_payload(json.loads(row[0])) for row in rows]
+
     def stats(self) -> Dict[str, int]:
         with self._connect() as conn:
             return {
@@ -153,3 +183,55 @@ class SQLiteStore:
 
     def _count(self, conn, table: str) -> int:
         return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+
+    def _task_from_payload(self, payload: Dict[str, Any]) -> Task:
+        case_payload = payload["case"]
+        test_case = TestCase(
+            case_id=case_payload["case_id"],
+            title=case_payload["title"],
+            automation_type=AutomationType(case_payload["automation_type"]),
+            preconditions=list(case_payload.get("preconditions", [])),
+            steps=[
+                TestStep(
+                    step_id=step["step_id"],
+                    intent=step["intent"],
+                    target_semantics=step["target_semantics"],
+                    visual_hints=list(step.get("visual_hints", [])),
+                    expected_state=step.get("expected_state"),
+                    timeout_seconds=int(step.get("timeout_seconds", 30)),
+                )
+                for step in case_payload.get("steps", [])
+            ],
+            assertions=[
+                Assertion(
+                    assertion_id=assertion["assertion_id"],
+                    expected=assertion["expected"],
+                    pass_criteria=assertion["pass_criteria"],
+                    fail_criteria=assertion["fail_criteria"],
+                    unknown_criteria=assertion["unknown_criteria"],
+                )
+                for assertion in case_payload.get("assertions", [])
+            ],
+            source=case_payload.get("source", "manual"),
+            priority=case_payload.get("priority", "P1"),
+            metadata=dict(case_payload.get("metadata", {})),
+        )
+        metadata = dict(payload.get("metadata", {}))
+        if payload.get("status") == TaskStatus.RUNNING.value:
+            metadata["recovered_from_interrupted_run"] = True
+        task = Task(
+            scenario=Scenario(payload["scenario"]),
+            case=test_case,
+            trigger_type=TriggerType(payload["trigger_type"]),
+            source=payload["source"],
+            task_id=payload["task_id"],
+            priority=int(payload.get("priority", 0)),
+            timeout_seconds=int(payload.get("timeout_seconds", 180)),
+            max_retry=int(payload.get("max_retry", 1)),
+            retry_count=int(payload.get("retry_count", 0)),
+            status=TaskStatus.PENDING,
+            idempotency_key=payload.get("idempotency_key"),
+            metadata=metadata,
+            created_at=float(payload.get("created_at", 0)),
+        )
+        return task

@@ -1,6 +1,10 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from yuanbao_agent_platform.api import YuanbaoApi
+from yuanbao_agent_platform.models import Scenario
+from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
 
 
 class YuanbaoApiTest(unittest.TestCase):
@@ -114,6 +118,26 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["requested_tasks"], 100)
         self.assertEqual(body["scheduler_run_summary"]["mode"], "thread_pool_worker")
+
+    def test_scheduler_recover_endpoint(self):
+        with TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "platform.db")
+            producer = YuanbaoTestingPlatform(db_path=db_path)
+            producer.submit_manual_case(
+                scenario=Scenario.DEV_SELF_TEST,
+                case_id="case-api-recover-001",
+                text="登录后进入我的页面，点击设置，验证状态。",
+            )
+
+            status, body = YuanbaoApi(YuanbaoTestingPlatform(db_path=db_path)).handle(
+                "POST",
+                "/scheduler/recover",
+                {},
+            )
+
+            self.assertEqual(status, 200)
+            self.assertEqual(body["loaded_from_store"], 1)
+            self.assertEqual(body["recovered"], 1)
 
 
 if __name__ == "__main__":

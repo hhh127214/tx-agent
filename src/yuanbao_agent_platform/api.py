@@ -55,6 +55,9 @@ class YuanbaoApi:
         if method == "GET" and path == "/storage/stats":
             return 200, self._platform.store.stats()
 
+        if method == "POST" and path == "/scheduler/recover":
+            return 200, self._platform.recover_pending_tasks()
+
         if method == "POST" and path == "/cases/convert":
             return 200, self._platform.convert_manual_case(payload.get("case_id", "case-api-001"), payload["text"])
 

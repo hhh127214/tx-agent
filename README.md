@@ -32,6 +32,7 @@ python -m yuanbao_agent_platform.api
 - `GET /adapters/health`
 - `GET /acceptance/report`
 - `GET /storage/stats`
+- `POST /scheduler/recover`
 - `POST /cases/convert`
 - `POST /prd/test-points`
 - `POST /bugs/regress`
@@ -82,6 +83,12 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/webhooks/ci-finished -
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/acceptance/report
+```
+
+显式恢复 SQLite 中未完成队列任务：
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/scheduler/recover
 ```
 
 查看 Mock GUI Agent 执行证据：
