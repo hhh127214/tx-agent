@@ -1,0 +1,23 @@
+{
+  "targets": {
+    "automation_coverage": 0.85,
+    "manual_replacement_rate": 0.7,
+    "bug_replacement_rate": 0.73,
+    "agent_success_rate": 0.9,
+    "unknown_rate_max": 0.1,
+    "false_positive_rate": 0.03,
+    "false_negative_rate": 0.02,
+    "failure_attribution_accuracy": 0.85,
+    "device_utilization": 0.75,
+    "container_utilization": 0.7
+  },
+  "definitions": {
+    "automation_coverage": "自动化可执行用例数 / 全部用例数",
+    "manual_replacement_rate": "无需人工执行的任务数 / 总任务数",
+    "bug_replacement_rate": "自动完成回归且无需人工复核的BUG数 / 待回归BUG数",
+    "agent_success_rate": "PASS与FAIL明确判定数 / 总执行数",
+    "unknown_rate": "UNKNOWN数 / 总执行数",
+    "false_positive_rate": "Agent判FAIL但人工确认PASS的比例",
+    "false_negative_rate": "Agent判PASS但人工确认FAIL的比例"
+  }
+}

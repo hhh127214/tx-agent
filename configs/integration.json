@@ -1,0 +1,46 @@
+{
+  "bug_system": {
+    "name": "TAPD/Jira/内部缺陷系统",
+    "enabled": true,
+    "trigger_modes": ["manual", "scheduled", "status_change", "ci_build_finished"],
+    "writeback_states": {
+      "PASS": "成功回归",
+      "FAIL": "回归失败",
+      "UNKNOWN": "Agent无法判定"
+    },
+    "idempotency_key": "bug_id + build_id + regression_case_id"
+  },
+  "ci_cd": {
+    "name": "GitLab CI/内部流水线",
+    "enabled": true,
+    "trigger_modes": ["pipeline_finished", "manual_gate"],
+    "writeback_states": {
+      "PASS": "准入通过",
+      "FAIL": "准入失败",
+      "UNKNOWN": "需要人工确认"
+    },
+    "idempotency_key": "pipeline_id + commit_sha + task_id"
+  },
+  "requirement_system": {
+    "name": "内部需求管理系统",
+    "enabled": true,
+    "trigger_modes": ["requirement_status_changed", "manual"],
+    "writeback_states": {
+      "PASS": "测试通过",
+      "FAIL": "发现缺陷",
+      "UNKNOWN": "需要补充验收标准"
+    },
+    "idempotency_key": "requirement_id + version + task_id"
+  },
+  "report_center": {
+    "name": "测试报告中心",
+    "enabled": true,
+    "trigger_modes": ["batch_finished"],
+    "writeback_states": {
+      "PASS": "批次通过",
+      "FAIL": "批次存在失败",
+      "UNKNOWN": "批次存在无法判定"
+    },
+    "idempotency_key": "batch_id + result_version"
+  }
+}

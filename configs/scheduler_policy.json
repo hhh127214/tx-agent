@@ -1,0 +1,68 @@
+{
+  "INTEGRATION_BATCH": {
+    "display_name": "集成测试大批量执行",
+    "priority": 50,
+    "resource_quota": 0.35,
+    "concurrency": 50,
+    "timeout_seconds": 600,
+    "max_retry": 2,
+    "allow_queue": true,
+    "allow_preempt": false,
+    "execution_window": "nightly_or_low_peak",
+    "writeback_target": "report_center",
+    "strategy": "throughput_first"
+  },
+  "DEV_SELF_TEST": {
+    "display_name": "开发自测",
+    "priority": 90,
+    "resource_quota": 0.15,
+    "concurrency": 10,
+    "timeout_seconds": 120,
+    "max_retry": 1,
+    "allow_queue": true,
+    "allow_preempt": true,
+    "execution_window": "on_ci_build",
+    "writeback_target": "ci_cd",
+    "strategy": "fast_feedback_first"
+  },
+  "REQUIREMENT_TEST": {
+    "display_name": "需求新功能测试",
+    "priority": 70,
+    "resource_quota": 0.25,
+    "concurrency": 20,
+    "timeout_seconds": 300,
+    "max_retry": 2,
+    "allow_queue": true,
+    "allow_preempt": false,
+    "execution_window": "requirement_test_phase",
+    "writeback_target": "requirement_system",
+    "strategy": "coverage_first"
+  },
+  "BUG_REGRESSION": {
+    "display_name": "BUG回归",
+    "priority": 85,
+    "resource_quota": 0.25,
+    "concurrency": 30,
+    "timeout_seconds": 240,
+    "max_retry": 1,
+    "allow_queue": true,
+    "allow_preempt": true,
+    "execution_window": "status_change_or_nightly",
+    "writeback_target": "bug_system",
+    "strategy": "defect_flow_first"
+  },
+  "quarantine": {
+    "failure_threshold": 2,
+    "unknown_threshold": 2,
+    "timeout_threshold": 2,
+    "release_policy": "manual_review_or_low_peak_replay",
+    "resource_policy": "blocked_from_main_queue"
+  },
+  "scale": {
+    "max_daily_cases": 10000,
+    "queue_shards": 16,
+    "device_pool_capacity": 100,
+    "container_pool_capacity": 200,
+    "scheduling_algorithm": "scenario_queue_isolation_plus_weighted_fair_priority"
+  }
+}
