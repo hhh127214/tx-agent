@@ -47,6 +47,10 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(report["summary"]["mvp_acceptance_passed"])
 
+        status, storage = api.handle("GET", "/storage/stats", {})
+        self.assertEqual(status, 200)
+        self.assertIn("tasks", storage)
+
     def test_webhook_endpoints(self):
         api = YuanbaoApi()
 

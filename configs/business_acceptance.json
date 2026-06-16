@@ -2,11 +2,11 @@
   "business_cases": [
     {
       "direction": "INTEGRATION_BATCH",
-      "name": "设置模块集成批量回归",
-      "business": "元宝设置域",
+      "name": "搜索模块集成批量回归",
+      "business": "元宝搜索域",
       "entry": "存量手工用例批次",
       "trigger": "nightly_batch",
-      "input_example": "登录后进入我的页面，点击设置，检查通知开关入口可见。",
+      "input_example": "在搜索页输入天气，确认搜索结果列表展示并可点击第一条结果。",
       "expected_writeback": "report_center"
     },
     {
@@ -20,11 +20,11 @@
     },
     {
       "direction": "REQUIREMENT_TEST",
-      "name": "通知设置需求验收测试",
-      "business": "元宝设置域",
+      "name": "会员权益需求验收测试",
+      "business": "元宝会员域",
       "entry": "需求单验收标准",
       "trigger": "requirement_status_changed",
-      "input_example": "需求测试：进入设置页，关闭通知开关，模拟保存失败后验证提示稍后重试并保持原状态。",
+      "input_example": "进入会员中心，打开权益说明，检查续费入口和价格文案展示正常。",
       "expected_writeback": "requirement_system"
     },
     {

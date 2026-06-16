@@ -52,6 +52,9 @@ class YuanbaoApi:
         if method == "GET" and path == "/acceptance/report":
             return 200, self._platform.run_acceptance_report()
 
+        if method == "GET" and path == "/storage/stats":
+            return 200, self._platform.store.stats()
+
         if method == "POST" and path == "/cases/convert":
             return 200, self._platform.convert_manual_case(payload.get("case_id", "case-api-001"), payload["text"])
 

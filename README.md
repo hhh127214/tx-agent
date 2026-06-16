@@ -30,6 +30,7 @@ python -m yuanbao_agent_platform.api
 - `GET /integrations`
 - `GET /adapters/health`
 - `GET /acceptance/report`
+- `GET /storage/stats`
 - `POST /cases/convert`
 - `POST /prd/test-points`
 - `POST /bugs/regress`
@@ -96,4 +97,7 @@ python -m unittest discover -s tests
 - `src/yuanbao_agent_platform/scheduler.py`：多场景调度、资源、重试、隔离
 - `src/yuanbao_agent_platform/executors.py`：GUI Agent 与后台自动化执行器模拟
 - `src/yuanbao_agent_platform/platform.py`：平台门面，串联端到端流程
+- `src/yuanbao_agent_platform/storage.py`：SQLite 持久化
+- `src/yuanbao_agent_platform/acceptance.py`：验收报告生成
+- `docs/current_engineering_state.md`：当前工程状态与验收覆盖说明
 - `tests/`：核心能力测试

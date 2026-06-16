@@ -22,10 +22,12 @@ from yuanbao_agent_platform.models import (
     TriggerType,
 )
 from yuanbao_agent_platform.scheduler import ExecutionScheduler, QuarantineManager, ResourceManager
+from yuanbao_agent_platform.storage import SQLiteStore
 
 
 class YuanbaoTestingPlatform:
-    def __init__(self, devices: int = 20, containers: int = 20):
+    def __init__(self, devices: int = 20, containers: int = 20, db_path: str = None):
+        self.store = SQLiteStore(db_path=db_path)
         self.case_converter = NaturalLanguageCaseConverter()
         self.bug_agent = BugRegressionAgent(self.case_converter)
         self.prd_agent = PRDTestDesignAgent()
@@ -72,7 +74,9 @@ class YuanbaoTestingPlatform:
             source=test_case.source,
             metadata=dict(test_case.metadata),
         )
-        return self.scheduler.submit(task)
+        submitted = self.scheduler.submit(task)
+        self.store.save_task(submitted)
+        return submitted
 
     def submit_backend_case(
         self,
@@ -114,7 +118,9 @@ class YuanbaoTestingPlatform:
             },
         )
         self.scheduler.submit(task)
+        self.store.save_task(task)
         results = self.scheduler.run_until_idle_concurrent(max_workers=8)
+        self._persist_results(results)
         result = next(item for item in reversed(results) if item.task_id == task.task_id)
         writeback = self._writeback_result(result)
         return BugRegressionResult(
@@ -137,6 +143,7 @@ class YuanbaoTestingPlatform:
 
     def run_queued_tasks(self, max_workers: int = 8) -> List[Dict[str, Any]]:
         results = self.scheduler.run_until_idle_concurrent(max_workers=max_workers)
+        self._persist_results(results)
         for result in results:
             self._writeback_result(result)
         return [asdict(result) for result in results]
@@ -179,9 +186,16 @@ class YuanbaoTestingPlatform:
             "metrics": self.metrics.summarize(self.scheduler.submitted_tasks, self.scheduler.results),
             "integration_config": integration_config(),
             "quarantine": self.quarantine.snapshot(),
+            "storage": self.store.stats(),
         }
 
     def run_large_scale_demo(self, total: int = 10000, max_workers: int = 32) -> Dict[str, Any]:
+        texts = [
+            "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
+            "在搜索页输入天气，确认搜索结果列表展示并可点击第一条结果。",
+            "进入会员中心，打开权益说明，检查续费入口和价格文案展示正常。",
+            "进入历史记录页面，删除一条记录，验证刷新后该记录不再出现。",
+        ]
         for index in range(total):
             scenario = [Scenario.INTEGRATION_BATCH, Scenario.DEV_SELF_TEST, Scenario.REQUIREMENT_TEST, Scenario.BUG_REGRESSION][index % 4]
             metadata = {}
@@ -195,12 +209,13 @@ class YuanbaoTestingPlatform:
             self.submit_manual_case(
                 scenario=scenario,
                 case_id=case_id,
-                text="登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
+                text=texts[index % len(texts)],
                 trigger_type=TriggerType.SCHEDULED if scenario == Scenario.INTEGRATION_BATCH else TriggerType.WEBHOOK,
                 metadata=metadata,
             )
 
         results = self.scheduler.run_until_idle_concurrent(max_workers=max_workers, max_iterations=total * 2)
+        self._persist_results(results)
         return {
             "requested_tasks": total,
             "produced_results": len(results),
@@ -210,39 +225,43 @@ class YuanbaoTestingPlatform:
             "metrics": self.metrics.summarize(self.scheduler.submitted_tasks, self.scheduler.results),
             "quarantine": self.quarantine.snapshot(),
             "sample_results": [asdict(result) for result in results[:5]],
+            "storage": self.store.stats(),
         }
 
     def run_acceptance_report(self) -> Dict[str, Any]:
-        return AcceptanceReporter(self).build_report()
+        report = AcceptanceReporter(self).build_report()
+        self.store.save_acceptance_report(report)
+        report["storage"] = self.store.stats()
+        return report
 
     def _submit_four_scenario_examples(self) -> List[Dict[str, Any]]:
         tasks = [
             self.submit_manual_case(
                 Scenario.INTEGRATION_BATCH,
-                "case-integration-001",
-                "集成测试批量执行：登录后进入我的页面，点击设置，检查通知开关入口可见。",
+                "case-integration-search-001",
+                "集成测试批量执行：在搜索页输入天气，确认搜索结果列表展示并可点击第一条结果。",
                 TriggerType.SCHEDULED,
-                metadata={"batch_id": "batch-integration-001"},
+                metadata={"batch_id": "batch-search-001", "business": "搜索域"},
             ),
             self.submit_manual_case(
                 Scenario.DEV_SELF_TEST,
-                "case-notification-001",
+                "case-dev-notification-001",
                 "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
                 TriggerType.CI,
-                metadata={"pipeline_id": "pipeline-001", "ci_blocking": True},
+                metadata={"pipeline_id": "pipeline-001", "ci_blocking": True, "business": "设置域"},
             ),
             self.submit_manual_case(
                 Scenario.REQUIREMENT_TEST,
-                "case-requirement-001",
-                "需求测试：进入设置页，关闭通知开关，模拟保存失败后验证提示稍后重试并保持原状态。",
+                "case-requirement-member-001",
+                "需求测试：进入会员中心，打开权益说明，检查续费入口和价格文案展示正常。",
                 TriggerType.WEBHOOK,
-                metadata={"requirement_id": "REQ-001"},
+                metadata={"requirement_id": "REQ-001", "business": "会员域"},
             ),
             self.submit_backend_case(
                 Scenario.DEV_SELF_TEST,
                 "开发自测：通知设置保存接口校验",
                 ["调用保存通知设置接口", "查询用户设置状态", "验证状态为关闭"],
-                metadata={"pipeline_id": "pipeline-001"},
+                metadata={"pipeline_id": "pipeline-001", "business": "设置域"},
             ),
         ]
         return [
@@ -250,6 +269,7 @@ class YuanbaoTestingPlatform:
                 "scenario": task.scenario.value,
                 "task_id": task.task_id,
                 "case_id": task.case.case_id,
+                "business": task.metadata.get("business"),
                 "priority": task.priority,
                 "timeout_seconds": task.timeout_seconds,
                 "max_retry": task.max_retry,
@@ -277,4 +297,10 @@ class YuanbaoTestingPlatform:
             or result.metadata.get("batch_id")
             or result.task_id
         )
-        return self.integrations.writeback_execution(result, target, external_id)
+        record = self.integrations.writeback_execution(result, target, external_id)
+        self.store.save_writeback(record)
+        return record
+
+    def _persist_results(self, results) -> None:
+        for result in results:
+            self.store.save_result(result)

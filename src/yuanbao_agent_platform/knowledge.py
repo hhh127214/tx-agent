@@ -39,23 +39,20 @@ class HybridKnowledgeBase:
                 scored.append((score, chunk))
 
         scored.sort(key=lambda item: item[0], reverse=True)
-        results = []
-        for score, chunk in scored[:top_k]:
-            results.append(
-                RetrievedKnowledge(
-                    source_type=chunk.source_type,
-                    source_id=chunk.chunk_id,
-                    title=chunk.title,
-                    score=round(score, 4),
-                    reason=self._reason(query_tokens, chunk),
-                )
+        return [
+            RetrievedKnowledge(
+                source_type=chunk.source_type,
+                source_id=chunk.chunk_id,
+                title=chunk.title,
+                score=round(score, 4),
+                reason=self._reason(query_tokens, chunk),
             )
-        return results
+            for score, chunk in scored[:top_k]
+        ]
 
     def _bm25(self, query_tokens: List[str], doc_tokens: List[str]) -> float:
         if not doc_tokens:
             return 0
-
         avgdl = sum(len(document) for document in self._documents) / max(1, len(self._documents))
         frequencies = Counter(doc_tokens)
         score = 0.0
@@ -94,6 +91,34 @@ def default_knowledge_base() -> HybridKnowledgeBase:
                 tags=["设置", "通知", "开关", "状态持久化", "回归"],
             ),
             KnowledgeChunk(
+                chunk_id="BUG-1142",
+                source_type="HISTORY_BUG",
+                title="弱网下保存设置失败但页面未提示",
+                content="用户切换设置项后接口超时，页面保持加载状态且未回滚，需覆盖失败提示和原状态保持。",
+                tags=["弱网", "保存失败", "设置", "异常提示"],
+            ),
+            KnowledgeChunk(
+                chunk_id="BUG-2031",
+                source_type="HISTORY_BUG",
+                title="搜索结果点击后跳转到空白页",
+                content="搜索结果列表首条点击后目标页白屏，需覆盖列表展示、点击跳转、返回和空结果。",
+                tags=["搜索", "结果列表", "跳转", "白屏"],
+            ),
+            KnowledgeChunk(
+                chunk_id="BUG-3108",
+                source_type="HISTORY_BUG",
+                title="会员价格文案与后台权益接口不一致",
+                content="会员中心展示价格与权益接口返回不一致，需校验 UI 文案、后台接口和续费入口。",
+                tags=["会员", "权益", "价格", "接口一致性"],
+            ),
+            KnowledgeChunk(
+                chunk_id="BUG-4102",
+                source_type="HISTORY_BUG",
+                title="历史记录删除后刷新又出现",
+                content="历史记录删除只更新本地列表，刷新后服务端记录仍返回，需校验删除接口和 UI 刷新状态。",
+                tags=["历史记录", "删除", "刷新", "数据一致性"],
+            ),
+            KnowledgeChunk(
                 chunk_id="SPEC-SETTING-TOGGLE",
                 source_type="TEST_SPEC",
                 title="设置项开关类功能测试规范",
@@ -101,11 +126,46 @@ def default_knowledge_base() -> HybridKnowledgeBase:
                 tags=["测试规范", "开关", "异常", "边界"],
             ),
             KnowledgeChunk(
+                chunk_id="SPEC-SEARCH",
+                source_type="TEST_SPEC",
+                title="搜索功能测试规范",
+                content="搜索需覆盖输入联想、结果列表、无结果、特殊字符、历史搜索、点击跳转和返回恢复。",
+                tags=["测试规范", "搜索", "列表", "边界"],
+            ),
+            KnowledgeChunk(
+                chunk_id="SPEC-MEMBER",
+                source_type="TEST_SPEC",
+                title="会员权益测试规范",
+                content="会员功能需覆盖价格文案、权益说明、续费入口、支付失败、登录态和后台接口一致性。",
+                tags=["测试规范", "会员", "支付", "权益"],
+            ),
+            KnowledgeChunk(
+                chunk_id="SPEC-DATA-CONSISTENCY",
+                source_type="TEST_SPEC",
+                title="前后台数据一致性测试规范",
+                content="涉及状态变更、删除、保存的功能需同时校验 UI 展示、接口返回和刷新后的持久化状态。",
+                tags=["数据一致性", "后台自动化", "持久化"],
+            ),
+            KnowledgeChunk(
                 chunk_id="CASE-LOGIN-001",
                 source_type="HISTORY_CASE",
                 title="登录后进入我的页面",
                 content="用户登录后可通过底部导航进入我的页面，再进入设置页面修改个人配置。",
                 tags=["登录", "我的", "设置", "页面路径"],
+            ),
+            KnowledgeChunk(
+                chunk_id="CASE-SEARCH-001",
+                source_type="HISTORY_CASE",
+                title="搜索页输入关键词并打开结果",
+                content="进入搜索页，输入关键词，等待结果列表出现，点击第一条结果并验证详情页展示。",
+                tags=["搜索", "输入", "结果", "详情页"],
+            ),
+            KnowledgeChunk(
+                chunk_id="CASE-MEMBER-001",
+                source_type="HISTORY_CASE",
+                title="会员中心权益说明展示",
+                content="进入会员中心，打开权益说明，检查权益项、价格文案、续费入口和登录态提示。",
+                tags=["会员", "权益", "价格", "续费"],
             ),
         ]
     )

@@ -1,4 +1,6 @@
 import unittest
+from tempfile import TemporaryDirectory
+from pathlib import Path
 
 from yuanbao_agent_platform.models import BugReport, ResultStatus, Scenario, TriggerType
 from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
@@ -145,6 +147,20 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
         self.assertGreaterEqual(integrations["implemented_adapter_count"], 2)
         self.assertIn("ci_cd", integrations["implemented_adapters"])
         self.assertIn("bug_system", integrations["implemented_adapters"])
+
+    def test_sqlite_persists_tasks_results_writebacks_and_acceptance_reports(self):
+        with TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "platform.db")
+            platform = YuanbaoTestingPlatform(db_path=db_path)
+            platform.run_demo()
+            report = platform.run_acceptance_report()
+            stats = platform.store.stats()
+
+            self.assertGreaterEqual(stats["tasks"], 5)
+            self.assertGreaterEqual(stats["execution_results"], 5)
+            self.assertGreaterEqual(stats["writebacks"], 5)
+            self.assertGreaterEqual(stats["acceptance_reports"], 1)
+            self.assertIn("storage", report)
 
 
 if __name__ == "__main__":
