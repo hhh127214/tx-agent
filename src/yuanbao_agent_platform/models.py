@@ -202,3 +202,4 @@ class TestPointGeneration:
     test_points: List[TestPoint]
     coverage: Dict[str, int]
     need_human_review: bool = False
+    metadata: Dict[str, Any] = field(default_factory=dict)

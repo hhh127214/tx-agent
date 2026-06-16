@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, Dict, Iterable, List
 
+from yuanbao_agent_platform.acceptance import AcceptanceReporter
+from yuanbao_agent_platform.adapters import InternalAdapterRegistry
 from yuanbao_agent_platform.agents import BugRegressionAgent, NaturalLanguageCaseConverter, PRDTestDesignAgent
 from yuanbao_agent_platform.config import integration_config
 from yuanbao_agent_platform.executors import BackendAutomationExecutor, ExecutionRouter, GuiAgentSimulator, ResultAnalyzer
@@ -32,6 +34,7 @@ class YuanbaoTestingPlatform:
             backend_executor=BackendAutomationExecutor(),
         )
         self.integrations = IntegrationHub()
+        self.adapters = InternalAdapterRegistry()
         self.metrics = MetricsCollector()
         self.quarantine = QuarantineManager()
         self.scheduler = ExecutionScheduler(
@@ -208,6 +211,9 @@ class YuanbaoTestingPlatform:
             "quarantine": self.quarantine.snapshot(),
             "sample_results": [asdict(result) for result in results[:5]],
         }
+
+    def run_acceptance_report(self) -> Dict[str, Any]:
+        return AcceptanceReporter(self).build_report()
 
     def _submit_four_scenario_examples(self) -> List[Dict[str, Any]]:
         tasks = [

@@ -28,6 +28,8 @@ python -m yuanbao_agent_platform.api
 - `GET /scheduler/policy`
 - `GET /metrics`
 - `GET /integrations`
+- `GET /adapters/health`
+- `GET /acceptance/report`
 - `POST /cases/convert`
 - `POST /prd/test-points`
 - `POST /bugs/regress`
@@ -72,6 +74,12 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/webhooks/bug-status-ch
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/webhooks/ci-finished -ContentType "application/json" -Body '{"pipeline_id":"pipeline-001","commit_sha":"abc123","artifact":"yuanbao-debug.apk","run_immediately":true}'
+```
+
+查看验收报告：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/acceptance/report
 ```
 
 ## 运行测试

@@ -4,7 +4,7 @@ from dataclasses import asdict
 from typing import Any, Dict, List
 
 from yuanbao_agent_platform.knowledge import HybridKnowledgeBase, default_knowledge_base
-from yuanbao_agent_platform.llm import CasePlanningLLM, MockCasePlanningLLM
+from yuanbao_agent_platform.llm import CasePlanningLLM, MockCasePlanningLLM, MockPRDPlanningLLM, PRDPlanningLLM
 from yuanbao_agent_platform.models import (
     AgentPlan,
     Assertion,
@@ -141,14 +141,14 @@ class BugRegressionAgent:
 
 
 class PRDTestDesignAgent:
-    def __init__(self, knowledge_base: HybridKnowledgeBase = None):
+    def __init__(self, knowledge_base: HybridKnowledgeBase = None, planner: PRDPlanningLLM = None):
         self._knowledge_base = knowledge_base or default_knowledge_base()
+        self._planner = planner or MockPRDPlanningLLM()
 
     def generate(self, prd_id: str, prd_text: str) -> TestPointGeneration:
-        keywords = self._extract_keywords(prd_text)
-        retrieved = self._knowledge_base.search(" ".join(keywords) + " " + prd_text, top_k=5)
-        feature = self._extract_feature(prd_text, keywords)
-        test_points = self._build_test_points(feature, prd_text, retrieved)
+        planning = self._planner.plan_prd(prd_text)
+        retrieved = self._knowledge_base.search(" ".join(planning.keywords + planning.risk_points) + " " + prd_text, top_k=5)
+        test_points = self._build_test_points(planning, retrieved)
         coverage = {
             "functional": sum(1 for point in test_points if point.point_type == "functional"),
             "boundary": sum(1 for point in test_points if point.point_type == "boundary"),
@@ -158,104 +158,46 @@ class PRDTestDesignAgent:
         }
         return TestPointGeneration(
             prd_id=prd_id,
-            feature=feature,
-            summary=f"围绕{feature}生成 GUI Agent 与后台自动化测试点",
-            keywords=keywords,
+            feature=planning.feature,
+            summary=planning.summary,
+            keywords=planning.keywords,
             retrieved_knowledge=retrieved,
             test_points=test_points,
             coverage=coverage,
-            need_human_review=False,
+            need_human_review=planning.need_human_review,
+            metadata={
+                "planner_provider": planning.planner_provider,
+                "prompt_version": planning.prompt_version,
+                "planner_confidence": planning.confidence,
+                "risk_points": planning.risk_points,
+            },
         )
 
-    def _extract_keywords(self, text: str) -> List[str]:
-        candidates = [
-            "通知开关",
-            "设置页",
-            "状态持久化",
-            "消息推送",
-            "重新登录",
-            "重启 App",
-            "切换网络",
-            "接口保存失败",
-            "弱网",
-            "权限",
-            "异常提示",
-        ]
-        keywords = [candidate for candidate in candidates if candidate.replace(" App", "") in text]
-        if not keywords:
-            import re
-
-            keywords = re.findall(r"[\u4e00-\u9fff]{2,8}", text)[:8]
-        return list(dict.fromkeys(keywords))
-
-    def _extract_feature(self, text: str, keywords: List[str]) -> str:
-        if "通知" in text and "设置" in text:
-            return "设置页通知开关"
-        return keywords[0] if keywords else "PRD 功能点"
-
-    def _build_test_points(
-        self,
-        feature: str,
-        prd_text: str,
-        retrieved: List[RetrievedKnowledge],
-    ) -> List[TestPoint]:
-        points = [
-            TestPoint(
-                point_id="TP-001",
-                priority="P0",
-                point_type="functional",
-                title=f"{feature}基础功能验证",
-                precondition="用户已登录且具备功能入口",
-                steps=["进入目标页面", "根据 PRD 操作目标控件", "观察页面状态"],
-                expected="页面状态符合 PRD 描述",
-                data_requirement="正常测试账号",
-                automation_type=AutomationType.GUI_AGENT,
-                risk_level="high",
-                source="PRD",
-            )
-        ]
-
-        if "重启" in prd_text or "重新登录" in prd_text or "保持" in prd_text:
+    def _build_test_points(self, planning, retrieved: List[RetrievedKnowledge]) -> List[TestPoint]:
+        points = []
+        for index, blueprint in enumerate(planning.test_blueprints, start=1):
             points.append(
                 TestPoint(
-                    point_id="TP-002",
-                    priority="P0",
-                    point_type="boundary",
-                    title=f"{feature}状态持久化验证",
-                    precondition="目标状态已被修改",
-                    steps=["修改目标状态", "重启 App 或重新登录", "重新进入目标页面"],
-                    expected="目标状态保持不变",
-                    data_requirement="同一登录账号",
-                    automation_type=AutomationType.GUI_AGENT,
-                    risk_level="high",
-                    source="PRD + HISTORY_BUG",
+                    point_id=f"TP-{index:03d}",
+                    priority=blueprint.priority,
+                    point_type=blueprint.point_type,
+                    title=blueprint.title,
+                    precondition=blueprint.precondition,
+                    steps=blueprint.steps,
+                    expected=blueprint.expected,
+                    data_requirement=blueprint.data_requirement,
+                    automation_type=AutomationType(blueprint.automation_type),
+                    risk_level=blueprint.risk_level,
+                    source=blueprint.source,
                 )
             )
-
-        if "失败" in prd_text or "异常" in prd_text or "弱网" in prd_text:
-            points.append(
-                TestPoint(
-                    point_id="TP-003",
-                    priority="P1",
-                    point_type="exception",
-                    title=f"{feature}异常失败处理验证",
-                    precondition="测试环境可模拟接口失败或弱网",
-                    steps=["进入目标页面", "触发目标操作", "模拟接口失败或弱网"],
-                    expected="展示明确错误提示，并保持或回滚到合理状态",
-                    data_requirement="可控 Mock 或测试环境",
-                    automation_type=AutomationType.BACKEND_AUTOMATION,
-                    risk_level="medium",
-                    source="PRD + TEST_SPEC",
-                )
-            )
-
         if retrieved and not any(point.point_type == "exception" for point in points):
             points.append(
                 TestPoint(
-                    point_id="TP-004",
+                    point_id=f"TP-{len(points) + 1:03d}",
                     priority="P2",
                     point_type="exception",
-                    title=f"{feature}历史风险回归验证",
+                    title=f"{planning.feature}历史风险回归验证",
                     precondition="存在历史相似缺陷知识",
                     steps=["执行历史缺陷相关路径", "验证风险点不再出现"],
                     expected="历史相似问题不复现",
@@ -265,5 +207,4 @@ class PRDTestDesignAgent:
                     source=retrieved[0].source_id,
                 )
             )
-
         return points

@@ -21,14 +21,17 @@ class VisionAgentClient(Protocol):
 
 
 class MockVisionAgentClient:
-    """Deterministic VLM adapter with variable outcomes for tests and demos."""
+    """Deterministic VLM adapter with confidence-driven outcomes."""
 
     def run_plan(self, plan: AgentPlan, runtime_context: Dict[str, Any]) -> VisionAgentRun:
         force_status = runtime_context.get("force_status")
-        confidence = float(runtime_context.get("vision_confidence", 0.96))
+        observation_confidence = float(runtime_context.get("vision_confidence", 0.96))
+        assertion_confidence = float(runtime_context.get("assertion_confidence", observation_confidence))
+        visual_mismatch_count = int(runtime_context.get("visual_mismatch_count", 0))
         actions = []
 
         for index, step in enumerate(plan.steps, start=1):
+            step_confidence = min(observation_confidence, assertion_confidence)
             actions.append(
                 {
                     "observe": f"screen-{index}.png",
@@ -37,15 +40,16 @@ class MockVisionAgentClient:
                     "act": step["intent"],
                     "verify": step["success_criteria"],
                     "mode": "vision_based_vlm",
-                    "confidence": confidence,
+                    "confidence": step_confidence,
                 }
             )
 
+        confidence = min(observation_confidence, assertion_confidence)
         if force_status:
             status = ResultStatus(force_status)
         elif confidence < 0.6:
             status = ResultStatus.UNKNOWN
-        elif "失败" in plan.goal and "验证" not in plan.goal:
+        elif visual_mismatch_count > 0 and confidence >= 0.8:
             status = ResultStatus.FAIL
         else:
             status = ResultStatus.PASS
@@ -53,7 +57,7 @@ class MockVisionAgentClient:
         if status == ResultStatus.PASS:
             reason = "VLM视觉执行与断言验证通过"
         elif status == ResultStatus.FAIL:
-            reason = "VLM观察到页面结果与预期相反"
+            reason = "VLM观察到高置信度视觉状态与断言预期不一致"
         else:
             reason = "VLM无法可靠判断页面状态或断言结果"
 

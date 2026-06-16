@@ -39,6 +39,14 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("bug_system", integrations["config"])
 
+        status, adapters = api.handle("GET", "/adapters/health", {})
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(adapters["connected_system_count"], 2)
+
+        status, report = api.handle("GET", "/acceptance/report", {})
+        self.assertEqual(status, 200)
+        self.assertTrue(report["summary"]["mvp_acceptance_passed"])
+
     def test_webhook_endpoints(self):
         api = YuanbaoApi()
 
@@ -72,6 +80,25 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(status, 202)
         self.assertEqual(ci_body["trigger"], "ci_finished")
         self.assertTrue(ci_body["results"])
+
+    def test_ci_webhook_is_idempotent(self):
+        api = YuanbaoApi()
+        payload = {
+            "pipeline_id": "pipeline-idempotent",
+            "commit_sha": "abc123",
+            "artifact": "yuanbao-debug.apk",
+            "run_immediately": True,
+        }
+
+        first_status, first_body = api.handle("POST", "/webhooks/ci-finished", payload)
+        second_status, second_body = api.handle("POST", "/webhooks/ci-finished", payload)
+
+        self.assertEqual(first_status, 202)
+        self.assertEqual(second_status, 200)
+        self.assertFalse(first_body["idempotent"])
+        self.assertTrue(second_body["idempotent"])
+        self.assertEqual(first_body["task"]["task_id"], second_body["task"]["task_id"])
+        self.assertEqual(len(api._platform.scheduler.submitted_tasks), 1)
 
     def test_large_scale_endpoint(self):
         status, body = YuanbaoApi().handle(
