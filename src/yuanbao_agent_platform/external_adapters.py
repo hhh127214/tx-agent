@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -23,14 +23,14 @@ class GitHubActionsAdapter:
     system_name = "github_actions"
 
     def __init__(self, repo: str = None, token: str = None, workflow: str = "agent-self-test.yml"):
-        self.repo = repo or os.getenv("GITHUB_REPOSITORY", "")
-        self.token = token or os.getenv("GITHUB_TOKEN", "")
+        self.repo = os.getenv("GITHUB_REPOSITORY", "") if repo is None else repo
+        self.token = os.getenv("GITHUB_TOKEN", "") if token is None else token
         self.workflow = workflow
         self.calls: List[ExternalCall] = []
 
     @property
     def mode(self) -> str:
-        if os.getenv("GITHUB_ACTIONS") == "true":
+        if os.getenv("GITHUB_ACTIONS") == "true" and self.repo:
             return "github_actions_runtime"
         return "github_api" if self.repo and self.token else "dry_run_payload"
 
@@ -81,9 +81,9 @@ class GitHubActionsAdapter:
 class GitHubIssuesAdapter:
     system_name = "github_issues"
 
-    def __init__(self, repo: str = None, token: str = None, waiting_label: str = "待回归"):
-        self.repo = repo or os.getenv("GITHUB_REPOSITORY", "")
-        self.token = token or os.getenv("GITHUB_TOKEN", "")
+    def __init__(self, repo: str = None, token: str = None, waiting_label: str = "\u5f85\u56de\u5f52"):
+        self.repo = os.getenv("GITHUB_REPOSITORY", "") if repo is None else repo
+        self.token = os.getenv("GITHUB_TOKEN", "") if token is None else token
         self.waiting_label = waiting_label
         self.calls: List[ExternalCall] = []
 

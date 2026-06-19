@@ -32,7 +32,7 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const labelName = '待回归';
+            const labelName = '\u5f85\u56de\u5f52';
             try {
               await github.rest.issues.getLabel({ owner, repo, name: labelName });
             } catch (error) {
@@ -42,7 +42,7 @@ jobs:
                   repo,
                   name: labelName,
                   color: 'D93F0B',
-                  description: 'Yuanbao Agent 待回归缺陷'
+                  description: 'Yuanbao Agent waiting regression bug'
                 });
               } else {
                 throw error;
@@ -59,16 +59,16 @@ jobs:
               await github.rest.issues.create({
                 owner,
                 repo,
-                title: '【待回归】关闭通知开关后重新进入设置页仍显示开启',
+                title: '[???] Notification switch regression in demo settings page',
                 body: [
-                  '复现步骤：',
-                  '1. 打开 Yuanbao Demo Web。',
-                  '2. 登录后进入我的页面。',
-                  '3. 进入设置页并关闭通知开关。',
-                  '4. 重新进入设置页。',
+                  'Regression steps:',
+                  '1. Open Yuanbao Demo Web.',
+                  '2. Login and enter the My page.',
+                  '3. Enter Settings and turn off notification switch.',
+                  '4. Re-enter Settings.',
                   '',
-                  '期望结果：通知开关保持关闭。',
-                  '实际结果：通知开关可能重新显示开启。'
+                  'Expected: notification switch remains off.',
+                  'Actual: notification switch may be shown as on again.'
                 ].join('\n'),
                 labels: [labelName]
               });
@@ -77,6 +77,9 @@ jobs:
         run: |
           PYTHONPATH=src python -m unittest discover -s tests
       - name: Run external substitute acceptance
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           PYTHONPATH=src python - <<'PY'
           import json
