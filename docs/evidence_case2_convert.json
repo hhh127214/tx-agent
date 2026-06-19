@@ -1,0 +1,218 @@
+﻿{
+    "ir":  {
+               "case_id":  "case-nl-evidence-001",
+               "title":  "登录后进入我的页面 点击设置 关闭通知开关 验证关闭状态保留",
+               "goal":  "登录后进入我的页面 点击设置 关闭通知开关 验证关闭状态保留",
+               "preconditions":  [
+                                     "用户已登录"
+                                 ],
+               "pages":  [
+                             {
+                                 "name":  "我的",
+                                 "aliases":  [
+                                                 "我的",
+                                                 "个人中心",
+                                                 "账号页",
+                                                 "Mine"
+                                             ]
+                             },
+                             {
+                                 "name":  "设置",
+                                 "aliases":  [
+                                                 "设置",
+                                                 "系统设置",
+                                                 "偏好设置",
+                                                 "Settings",
+                                                 "齿轮"
+                                             ]
+                             }
+                         ],
+               "steps":  [
+                             {
+                                 "step_id":  "s1",
+                                 "intent":  "navigate",
+                                 "target_semantics":  "我的页面",
+                                 "visual_hints":  [
+                                                      "底部导航",
+                                                      "我的",
+                                                      "头像",
+                                                      "个人信息区域"
+                                                  ],
+                                 "expected_state":  "当前页面为我的页面",
+                                 "timeout_seconds":  30
+                             },
+                             {
+                                 "step_id":  "s2",
+                                 "intent":  "tap",
+                                 "target_semantics":  "设置入口",
+                                 "visual_hints":  [
+                                                      "设置",
+                                                      "齿轮图标",
+                                                      "偏好设置",
+                                                      "开关列表"
+                                                  ],
+                                 "expected_state":  "进入设置页面",
+                                 "timeout_seconds":  30
+                             },
+                             {
+                                 "step_id":  "s3",
+                                 "intent":  "set_toggle",
+                                 "target_semantics":  "通知/消息提醒开关",
+                                 "visual_hints":  [
+                                                      "通知",
+                                                      "消息提醒",
+                                                      "推送",
+                                                      "开关控件",
+                                                      "勿扰相关入口"
+                                                  ],
+                                 "expected_state":  "off",
+                                 "timeout_seconds":  30
+                             },
+                             {
+                                 "step_id":  "s4",
+                                 "intent":  "verify",
+                                 "target_semantics":  "目标状态保留",
+                                 "visual_hints":  [
+                                                      "目标控件",
+                                                      "预期状态",
+                                                      "重新进入页面后的状态"
+                                                  ],
+                                 "expected_state":  "通知/消息提醒开关仍为关闭",
+                                 "timeout_seconds":  30
+                             }
+                         ],
+               "assertions":  [
+                                  {
+                                      "assertion_id":  "assert-case-nl-evidence-001",
+                                      "expected":  "通知/消息提醒开关仍为关闭",
+                                      "pass_criteria":  "视觉状态和业务状态均符合预期",
+                                      "fail_criteria":  "页面明确展示与预期相反的结果",
+                                      "unknown_criteria":  "页面变化、断言不明确或视觉置信度不足"
+                                  }
+                              ],
+               "fallback_strategy":  [
+                                         "目标入口不可见时滚动查找",
+                                         "页面跳转失败时基于 Page Graph 重新规划路径",
+                                         "控件名称不一致时使用同义词和历史执行经验匹配",
+                                         "断言低置信度时输出 UNKNOWN 并进入人工复核"
+                                     ],
+               "planner_provider":  "mock_semantic_llm",
+               "prompt_version":  "case-planning-v2",
+               "extracted_entities":  {
+                                          "concepts":  [
+                                                           "disable",
+                                                           "login",
+                                                           "mine",
+                                                           "notification",
+                                                           "persist",
+                                                           "settings",
+                                                           "verify"
+                                                       ],
+                                          "matched_aliases":  {
+                                                                  "notification":  [
+                                                                                       "通知"
+                                                                                   ],
+                                                                  "settings":  [
+                                                                                   "设置"
+                                                                               ],
+                                                                  "mine":  [
+                                                                               "我的",
+                                                                               "我"
+                                                                           ],
+                                                                  "disable":  [
+                                                                                  "关闭"
+                                                                              ],
+                                                                  "verify":  [
+                                                                                 "验证",
+                                                                                 "保留"
+                                                                             ],
+                                                                  "persist":  [
+                                                                                  "保留"
+                                                                              ],
+                                                                  "login":  [
+                                                                                "登录"
+                                                                            ]
+                                                              }
+                                      },
+               "confidence":  0.9,
+               "need_human_review":  false
+           },
+    "agent_plan":  {
+                       "plan_id":  "plan-case-nl-evidence-001",
+                       "goal":  "登录后进入我的页面 点击设置 关闭通知开关 验证关闭状态保留",
+                       "context":  {
+                                       "execution_mode":  "VISION_BASED_GUI_AGENT",
+                                       "planning_mode":  "LLM_PLANNED",
+                                       "planner_provider":  "mock_semantic_llm",
+                                       "prompt_version":  "case-planning-v2",
+                                       "selector_policy":  "visual_first_auxiliary_metadata_only",
+                                       "preconditions":  [
+                                                             "用户已登录"
+                                                         ]
+                                   },
+                       "steps":  [
+                                     {
+                                         "intent":  "navigate",
+                                         "visual_target":  "我的页面",
+                                         "visual_hints":  [
+                                                              "底部导航",
+                                                              "我的",
+                                                              "头像",
+                                                              "个人信息区域"
+                                                          ],
+                                         "success_criteria":  "当前页面为我的页面",
+                                         "unknown_criteria":  "无法找到语义目标或页面状态无法可靠识别"
+                                     },
+                                     {
+                                         "intent":  "tap",
+                                         "visual_target":  "设置入口",
+                                         "visual_hints":  [
+                                                              "设置",
+                                                              "齿轮图标",
+                                                              "偏好设置",
+                                                              "开关列表"
+                                                          ],
+                                         "success_criteria":  "进入设置页面",
+                                         "unknown_criteria":  "无法找到语义目标或页面状态无法可靠识别"
+                                     },
+                                     {
+                                         "intent":  "set_toggle",
+                                         "visual_target":  "通知/消息提醒开关",
+                                         "visual_hints":  [
+                                                              "通知",
+                                                              "消息提醒",
+                                                              "推送",
+                                                              "开关控件",
+                                                              "勿扰相关入口"
+                                                          ],
+                                         "success_criteria":  "off",
+                                         "unknown_criteria":  "无法找到语义目标或页面状态无法可靠识别"
+                                     },
+                                     {
+                                         "intent":  "verify",
+                                         "visual_target":  "目标状态保留",
+                                         "visual_hints":  [
+                                                              "目标控件",
+                                                              "预期状态",
+                                                              "重新进入页面后的状态"
+                                                          ],
+                                         "success_criteria":  "通知/消息提醒开关仍为关闭",
+                                         "unknown_criteria":  "无法找到语义目标或页面状态无法可靠识别"
+                                     }
+                                 ],
+                       "max_steps":  20,
+                       "timeout_seconds":  180,
+                       "self_healing":  {
+                                            "allow_scroll":  true,
+                                            "allow_backtrack":  true,
+                                            "allow_synonym_match":  true,
+                                            "allow_page_graph_reroute":  true,
+                                            "max_recovery_attempts":  3
+                                        },
+                       "result_schema":  [
+                                             "PASS",
+                                             "FAIL",
+                                             "UNKNOWN"
+                                         ]
+                   }
+}
