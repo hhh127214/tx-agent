@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from time import time
 from typing import Any, Dict, List, Optional
-from urllib import request
+from urllib import parse, request
 
 
 @dataclass
@@ -30,16 +30,29 @@ class GitHubActionsAdapter:
 
     @property
     def mode(self) -> str:
+        if os.getenv("GITHUB_ACTIONS") == "true":
+            return "github_actions_runtime"
         return "github_api" if self.repo and self.token else "dry_run_payload"
 
     def trigger_agent_self_test(self, ref: str = "master", inputs: Dict[str, Any] = None) -> Dict[str, Any]:
         payload = {"ref": ref, "inputs": inputs or {"scenario": "dev_self_test"}}
         external_id = f"{self.repo or 'local-repo'}:{self.workflow}:{ref}"
-        response = self._post_json(
+        if self.mode == "github_actions_runtime":
+            response = {
+                "current_run": True,
+                "run_id": os.getenv("GITHUB_RUN_ID", ""),
+                "workflow": os.getenv("GITHUB_WORKFLOW", ""),
+                "event": os.getenv("GITHUB_EVENT_NAME", ""),
+                "request": payload,
+            }
+        elif self.mode == "github_api":
+            response = self._post_json(
             f"https://api.github.com/repos/{self.repo}/actions/workflows/{self.workflow}/dispatches",
             payload,
             expected_status={204},
-        ) if self.mode == "github_api" else {"dry_run": True, "request": payload}
+            )
+        else:
+            response = {"dry_run": True, "request": payload}
         self.calls.append(ExternalCall(self.system_name, "workflow_dispatch", external_id, payload, self.mode))
         return {"system": self.system_name, "mode": self.mode, "external_id": external_id, "response": response}
 
@@ -81,10 +94,16 @@ class GitHubIssuesAdapter:
     def fetch_waiting_regression(self) -> List[Dict[str, Any]]:
         payload = {"state": "open", "labels": self.waiting_label}
         if self.mode == "github_api":
-            query = f"state=open&labels={self.waiting_label}"
+            query = parse.urlencode({"state": "open", "labels": self.waiting_label})
             response = self._request_json(f"https://api.github.com/repos/{self.repo}/issues?{query}")
             issues = [
-                {"bug_id": f"GH-{item['number']}", "title": item["title"], "body": item.get("body", ""), "url": item["html_url"]}
+                {
+                    "bug_id": f"GH-{item['number']}",
+                    "number": item["number"],
+                    "title": item["title"],
+                    "body": item.get("body", ""),
+                    "url": item["html_url"],
+                }
                 for item in response
                 if "pull_request" not in item
             ]
@@ -92,6 +111,7 @@ class GitHubIssuesAdapter:
             issues = [
                 {
                     "bug_id": "GH-1",
+                    "number": 1,
                     "title": "关闭通知开关后重新进入设置页仍显示开启",
                     "body": "复现步骤：登录 Demo Web，进入设置，关闭通知开关，重新进入设置页。期望：保持关闭。",
                     "url": "https://github.com/example/repo/issues/1",

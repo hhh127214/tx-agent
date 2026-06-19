@@ -43,6 +43,9 @@ class ExternalAcceptanceRunner:
             prd = self._adapters.markdown_prd.fetch_prd("external_demo_prd")
             test_points = self._platform.generate_prd_test_points(prd["prd_id"], prd["prd_text"])
             issues = self._adapters.github_issues.fetch_waiting_regression()
+            if not issues:
+                raise RuntimeError("未拉取到带 待回归 label 的 GitHub Issue，无法执行真实 BUG 回归验收")
+            issue = issues[0]
             bug_task = self._platform.submit_manual_case(
                 Scenario.BUG_REGRESSION,
                 "external-github-issue-001",
@@ -50,7 +53,9 @@ class ExternalAcceptanceRunner:
                 TriggerType.WEBHOOK,
                 metadata={
                     "external_bug_system": "github_issues",
-                    "bug_id": issues[0]["bug_id"],
+                    "bug_id": issue["bug_id"],
+                    "github_issue_number": issue["number"],
+                    "github_issue_url": issue["url"],
                     "writeback_target": "bug_system",
                 },
             )
@@ -64,7 +69,7 @@ class ExternalAcceptanceRunner:
             results = self._platform.run_queued_tasks(max_workers=4)
             bug_result = next(item for item in results if item["task_id"] == bug_task.task_id)
             issue_writeback = self._adapters.github_issues.write_regression_result(
-                issue_number=1,
+                issue_number=int(issue["number"]),
                 status=bug_result["status"],
                 payload={
                     "reason": bug_result["reason"],
@@ -85,6 +90,7 @@ class ExternalAcceptanceRunner:
                 "external_systems": {
                     "github_actions": dev_self_test,
                     "github_issues_writeback": issue_writeback,
+                    "github_issue": issue,
                     "markdown_prd": {"prd_id": prd["prd_id"], "path": prd["path"]},
                     "adapter_health": self._adapters.health(),
                 },

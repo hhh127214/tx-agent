@@ -5,8 +5,35 @@ from urllib import request
 
 from yuanbao_agent_platform.api import YuanbaoApi
 from yuanbao_agent_platform.demo_web import run_demo_web_server
+from yuanbao_agent_platform.external_acceptance import ExternalAcceptanceRunner
 from yuanbao_agent_platform.external_adapters import ExternalAdapterRegistry, GitHubActionsAdapter, GitHubIssuesAdapter, MarkdownPRDAdapter
 from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
+
+
+class FakeGitHubIssuesAdapter:
+    system_name = "github_issues"
+    mode = "github_api"
+
+    def __init__(self):
+        self.written_issue_number = None
+
+    def fetch_waiting_regression(self):
+        return [
+            {
+                "bug_id": "GH-42",
+                "number": 42,
+                "title": "关闭通知开关后重新进入设置页仍显示开启",
+                "body": "复现步骤：登录，进入设置，关闭通知。",
+                "url": "https://github.com/example/repo/issues/42",
+            }
+        ]
+
+    def write_regression_result(self, issue_number, status, payload):
+        self.written_issue_number = issue_number
+        return {"system": self.system_name, "mode": self.mode, "external_id": f"example/repo#{issue_number}", "status": status}
+
+    def health_check(self):
+        return {"system": self.system_name, "mode": self.mode, "healthy": True, "calls": 1}
 
 
 class ExternalAcceptanceTest(unittest.TestCase):
@@ -51,6 +78,22 @@ class ExternalAcceptanceTest(unittest.TestCase):
         self.assertEqual(modes["github_actions"], "dry_run_payload")
         self.assertEqual(modes["github_issues"], "dry_run_payload")
         self.assertEqual(modes["markdown_prd"], "local_file_real_prd")
+
+    def test_external_acceptance_writes_back_to_fetched_issue_number(self):
+        with TemporaryDirectory() as tmpdir:
+            fake_issues = FakeGitHubIssuesAdapter()
+            adapters = ExternalAdapterRegistry(
+                github_actions=GitHubActionsAdapter(repo="", token=""),
+                github_issues=fake_issues,
+                markdown_prd=MarkdownPRDAdapter(),
+            )
+            platform = YuanbaoTestingPlatform(db_path=str(Path(tmpdir) / "platform.db"))
+
+            report = ExternalAcceptanceRunner(platform, adapters).run()
+
+            self.assertTrue(report["summary"]["external_substitute_acceptance_passed"])
+            self.assertEqual(fake_issues.written_issue_number, 42)
+            self.assertEqual(report["external_systems"]["github_issue"]["number"], 42)
 
     def test_external_acceptance_api_endpoint(self):
         with TemporaryDirectory() as tmpdir:
