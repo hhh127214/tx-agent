@@ -9,7 +9,11 @@ from yuanbao_agent_platform.vlm import MockVisionAgentClient, OpenAICompatibleVi
 
 class YuanbaoTestingPlatformTest(unittest.TestCase):
     def setUp(self):
-        self.platform = YuanbaoTestingPlatform()
+        self._tmpdir = TemporaryDirectory()
+        self.platform = YuanbaoTestingPlatform(db_path=str(Path(self._tmpdir.name) / "platform.db"))
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
 
     def test_manual_case_conversion_uses_llm_planned_vision_plan(self):
         converted = self.platform.convert_manual_case(
@@ -109,6 +113,26 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
             self.assertTrue(fail_run.screenshots)
             self.assertTrue(Path(fail_run.screenshots[0]).exists())
             self.assertIn("task-vlm-artifact", fail_run.screenshots[0])
+
+    def test_page_change_triggers_agent_replan_and_rerun(self):
+        self.platform.submit_manual_case(
+            Scenario.BUG_REGRESSION,
+            "case-page-change-001",
+            "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。",
+            TriggerType.STATUS_CHANGE,
+            metadata={"page_changed_detected": True, "bug_id": "BUG-PAGE-CHANGE-001"},
+        )
+
+        results = self.platform.run_queued_tasks(max_workers=1)
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]["status"], ResultStatus.UNKNOWN.value)
+        self.assertIn("重新观察", results[0]["reason"])
+        self.assertEqual(results[1]["status"], ResultStatus.PASS.value)
+        self.assertIn("重新 Observe/Plan/Act", results[1]["reason"])
+        self.assertTrue(results[1]["metadata"]["replan_triggered"])
+        self.assertEqual(results[1]["metadata"]["replan_attempt"], 1)
+        self.assertEqual(results[1]["trace"]["actions"][0]["replan_attempt"], 1)
 
     def test_openai_compatible_vlm_client_is_explicit_integration_boundary(self):
         client = OpenAICompatibleVisionAgentClient(

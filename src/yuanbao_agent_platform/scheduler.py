@@ -190,6 +190,9 @@ class ExecutionScheduler:
         if result.status not in {ResultStatus.PASS, ResultStatus.FAIL} and task.retry_count < task.max_retry:
             task.retry_count += 1
             task.status = TaskStatus.PENDING
+            task.metadata["replan_triggered"] = True
+            task.metadata["replan_attempt"] = task.retry_count
+            task.metadata["last_retry_reason"] = result.reason
             with self._queue_lock:
                 self._queues[task.scenario].append(task)
         else:

@@ -103,7 +103,8 @@ class SQLiteStore:
         scheduler can safely retry them after an explicit recovery request.
         """
 
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             rows = conn.execute(
                 """
                 SELECT payload
@@ -114,16 +115,21 @@ class SQLiteStore:
                 """,
                 (TaskStatus.PENDING.value, TaskStatus.RUNNING.value),
             ).fetchall()
+        finally:
+            conn.close()
         return [self._task_from_payload(json.loads(row[0])) for row in rows]
 
     def stats(self) -> Dict[str, int]:
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             return {
                 "tasks": self._count(conn, "tasks"),
                 "execution_results": self._count(conn, "execution_results"),
                 "writebacks": self._count(conn, "writebacks"),
                 "acceptance_reports": self._count(conn, "acceptance_reports"),
             }
+        finally:
+            conn.close()
 
     def _init_schema(self) -> None:
         statements = [
@@ -167,16 +173,22 @@ class SQLiteStore:
             )
             """,
         ]
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             for statement in statements:
                 conn.execute(statement)
             conn.commit()
+        finally:
+            conn.close()
 
     def _execute(self, statement: str, params: tuple) -> None:
         with self._lock:
-            with self._connect() as conn:
+            conn = self._connect()
+            try:
                 conn.execute(statement, params)
                 conn.commit()
+            finally:
+                conn.close()
 
     def _connect(self):
         return sqlite3.connect(str(self.db_path))

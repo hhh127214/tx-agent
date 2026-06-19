@@ -94,10 +94,10 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/scheduler/recover
 查看 Mock GUI Agent 执行证据：
 
 ```powershell
-Get-ChildItem -Recurse artifacts/screenshots
+Get-ChildItem -Recurse runtime_artifacts/screenshots
 ```
 
-说明：`artifacts/screenshots/{task_id}/step-{n}-observe.png` 是 MVP 生成的可追溯执行证据文件，用于模拟真实设备/VLM 服务返回的截图产物形态；它不是物理设备实时截图。
+说明：`runtime_artifacts/screenshots/{task_id}/step-{n}-observe.png` 是 MVP 生成的可追溯执行证据文件，用于模拟真实设备/VLM 服务返回的截图产物形态；它不是物理设备实时截图。
 
 ## 运行测试
 

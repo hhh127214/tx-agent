@@ -34,7 +34,7 @@ class MockVisionAgentClient:
     MVP, not screenshots captured from a physical device.
     """
 
-    def __init__(self, artifact_root: str = "artifacts/screenshots"):
+    def __init__(self, artifact_root: str = "runtime_artifacts/screenshots"):
         self._artifact_root = Path(artifact_root)
 
     def run_plan(self, plan: AgentPlan, runtime_context: Dict[str, Any]) -> VisionAgentRun:
@@ -43,6 +43,8 @@ class MockVisionAgentClient:
         assertion_confidence = float(runtime_context.get("assertion_confidence", observation_confidence))
         visual_mismatch_count = int(runtime_context.get("visual_mismatch_count", 0))
         artifact_owner = str(runtime_context.get("task_id") or plan.plan_id)
+        page_changed = bool(runtime_context.get("page_changed_detected") or runtime_context.get("step_path_invalid"))
+        replan_attempt = int(runtime_context.get("replan_attempt", runtime_context.get("retry_count", 0)))
         actions = []
 
         for index, step in enumerate(plan.steps, start=1):
@@ -57,12 +59,16 @@ class MockVisionAgentClient:
                     "verify": step["success_criteria"],
                     "mode": "vision_based_vlm",
                     "confidence": step_confidence,
+                    "page_changed_detected": page_changed,
+                    "replan_attempt": replan_attempt,
                 }
             )
 
         confidence = min(observation_confidence, assertion_confidence)
         if force_status:
             status = ResultStatus(force_status)
+        elif page_changed and replan_attempt == 0:
+            status = ResultStatus.UNKNOWN
         elif confidence < 0.6:
             status = ResultStatus.UNKNOWN
         elif visual_mismatch_count > 0 and confidence >= 0.8:
@@ -70,8 +76,12 @@ class MockVisionAgentClient:
         else:
             status = ResultStatus.PASS
 
-        if status == ResultStatus.PASS:
+        if status == ResultStatus.PASS and page_changed and replan_attempt > 0:
+            reason = "页面变化后，VLM重新 Observe/Plan/Act 并完成验证"
+        elif status == ResultStatus.PASS:
             reason = "VLM视觉执行与断言验证通过"
+        elif status == ResultStatus.UNKNOWN and page_changed and replan_attempt == 0:
+            reason = "检测到页面改版或复现路径失效，触发Agent重新观察与规划"
         elif status == ResultStatus.FAIL:
             reason = "VLM观察到高置信度视觉状态与断言预期不一致"
         else:

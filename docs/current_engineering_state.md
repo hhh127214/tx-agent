@@ -34,7 +34,8 @@ PRD / 手工用例 / BUG / CI Webhook
 | --- | --- | --- |
 | 语义化 LLM Mock | `src/yuanbao_agent_platform/llm.py` | 使用 `SemanticConceptMapper` 模拟模糊表达泛化，例如“叮叮咚咚老打扰”映射为通知类功能 |
 | PRD LLM Planner | `src/yuanbao_agent_platform/llm.py`、`agents.py` | PRD 测试点生成也接入 `PRDPlanningLLM`，不再停留在关键词函数 |
-| VLM Adapter | `src/yuanbao_agent_platform/vlm.py` | 基于视觉置信度、断言置信度和视觉不一致信号输出 PASS/FAIL/UNKNOWN，并生成 `artifacts/screenshots/{task_id}/step-{n}-observe.png` 证据文件 |
+| VLM Adapter | `src/yuanbao_agent_platform/vlm.py` | 基于视觉置信度、断言置信度和视觉不一致信号输出 PASS/FAIL/UNKNOWN，并生成 `runtime_artifacts/screenshots/{task_id}/step-{n}-observe.png` 证据文件 |
+| 页面改版重跑 | `src/yuanbao_agent_platform/vlm.py`、`scheduler.py` | 当 `page_changed_detected` 或 `step_path_invalid` 出现时，首次返回 UNKNOWN 触发 Agent 重新 Observe/Plan/Act，再次执行给出最终判断 |
 | 真实 VLM 接口骨架 | `src/yuanbao_agent_platform/vlm.py` | `OpenAICompatibleVisionAgentClient` 预留 OpenAI-compatible / 内部 VLM 服务接入点，不在 MVP 中发起网络调用 |
 | 并发调度 | `src/yuanbao_agent_platform/scheduler.py` | 使用 `ThreadPoolExecutor` 模拟 worker 池，支持大规模混合任务执行 |
 | SQLite 持久化 | `src/yuanbao_agent_platform/storage.py` | 持久化任务、执行结果、回写记录和验收报告 |
@@ -93,7 +94,7 @@ python -m yuanbao_agent_platform.api
 Mock GUI Agent 执行后会生成截图证据：
 
 ```powershell
-Get-ChildItem -Recurse artifacts/screenshots
+Get-ChildItem -Recurse runtime_artifacts/screenshots
 ```
 
 这些 PNG 文件证明 trace 中的 `screenshots` 字段指向真实可打开的工程产物；它们仍是 Mock 产物，不等同于真实设备截图流。

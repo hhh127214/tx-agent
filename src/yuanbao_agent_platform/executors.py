@@ -33,7 +33,11 @@ class GuiAgentSimulator:
     def execute(self, job: ExecutionJob) -> ExecutionResult:
         started = time()
         plan = self._converter.to_agent_plan(job.task.case)
-        runtime_context = {"task_id": job.task.task_id, **job.task.metadata}
+        runtime_context = {
+            "task_id": job.task.task_id,
+            **job.task.metadata,
+            "retry_count": job.task.retry_count,
+        }
         run = self._vision_client.run_plan(plan, runtime_context)
         trace = ExecutionTrace(
             trace_id=f"trace-{uuid4().hex[:8]}",

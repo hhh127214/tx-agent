@@ -8,14 +8,21 @@ from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
 
 
 class YuanbaoApiTest(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = TemporaryDirectory()
+        self.api = YuanbaoApi(YuanbaoTestingPlatform(db_path=str(Path(self._tmpdir.name) / "platform.db")))
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
     def test_health_endpoint(self):
-        status, body = YuanbaoApi().handle("GET", "/health", {})
+        status, body = self.api.handle("GET", "/health", {})
 
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "ok")
 
     def test_convert_endpoint(self):
-        status, body = YuanbaoApi().handle(
+        status, body = self.api.handle(
             "POST",
             "/cases/convert",
             {
@@ -28,7 +35,7 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(body["agent_plan"]["context"]["execution_mode"], "VISION_BASED_GUI_AGENT")
 
     def test_policy_and_metrics_endpoints(self):
-        api = YuanbaoApi()
+        api = self.api
 
         status, policy = api.handle("GET", "/scheduler/policy", {})
         self.assertEqual(status, 200)
@@ -56,7 +63,7 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertIn("tasks", storage)
 
     def test_webhook_endpoints(self):
-        api = YuanbaoApi()
+        api = self.api
 
         status, bug_body = api.handle(
             "POST",
@@ -90,7 +97,7 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertTrue(ci_body["results"])
 
     def test_ci_webhook_is_idempotent(self):
-        api = YuanbaoApi()
+        api = self.api
         payload = {
             "pipeline_id": "pipeline-idempotent",
             "commit_sha": "abc123",
@@ -109,7 +116,7 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(len(api._platform.scheduler.submitted_tasks), 1)
 
     def test_large_scale_endpoint(self):
-        status, body = YuanbaoApi().handle(
+        status, body = self.api.handle(
             "POST",
             "/demo/large-scale",
             {"total": 100, "max_workers": 8},

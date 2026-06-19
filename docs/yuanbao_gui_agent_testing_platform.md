@@ -64,7 +64,7 @@ flowchart TD
   E --> E6[Environment Manager]
   E --> E7[Log/Screenshot/Video Collector]
   E --> E8[OpenAICompatibleVisionAgentClient<br/>真实 VLM/GUI Agent 接入边界]
-  E --> E9[Mock Screenshot Artifacts<br/>artifacts/screenshots]
+  E --> E9[Mock Screenshot Artifacts<br/>runtime_artifacts/screenshots]
 
   E --> F[结果分析层]
   F --> F1[Verification Agent]
@@ -283,7 +283,7 @@ sequenceDiagram
 - 环境失败：设备不可用、构建包异常、账号数据异常。
 - 网络失败：服务超时、接口不可达、弱网异常。
 - 被测应用崩溃：闪退、白屏、卡死。
-- Agent 无法判定：断言不明确、视觉置信度低、页面变化过大。
+- Agent 无法判定：断言不明确、视觉置信度低、页面变化过大。若功能改版或复现路径失效，首次执行返回 UNKNOWN 并触发 GUI Agent 重新 Observe、重新 Planning、重新执行；若重跑后仍无法判断，再进入人工复核。
 
 处理策略：
 

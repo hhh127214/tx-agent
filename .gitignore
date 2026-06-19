@@ -11,3 +11,5 @@ data/*.db
 data/*.db-*
 artifacts/screenshots/**/*.png
 !artifacts/screenshots/.gitkeep
+runtime_artifacts/screenshots/**/*.png
+!runtime_artifacts/screenshots/.gitkeep
