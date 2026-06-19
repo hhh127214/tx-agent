@@ -17,23 +17,17 @@
 
 仓库地址：
 
-```text
-https://github.com/hhh127214/tx-agent.git
-```
+- `https://github.com/hhh127214/tx-agent.git`
 
 本地运行：
 
-```powershell
-cd C:\Users\17128\Documents\tx-yuanbao
-$env:PYTHONPATH="src"
-python -m unittest discover -s tests
-```
+- 进入项目目录：`cd C:\Users\17128\Documents\tx-yuanbao`
+- 设置源码路径：`$env:PYTHONPATH="src"`
+- 运行测试：`python -m unittest discover -s tests`
 
 当前测试结果：
 
-```text
-Ran 25 tests ... OK
-```
+- `Ran 25 tests ... OK`
 
 ---
 
