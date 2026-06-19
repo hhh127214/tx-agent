@@ -11,6 +11,7 @@
 - SQLite 持久化
 - 显式队列恢复
 - Mock 执行截图证据
+- 外部真实接入替代验证
 - 验收报告自检
 - PRD 知识库召回与测试点生成
 
@@ -40,6 +41,7 @@ PRD / 手工用例 / BUG / CI Webhook
 | 并发调度 | `src/yuanbao_agent_platform/scheduler.py` | 使用 `ThreadPoolExecutor` 模拟 worker 池，支持大规模混合任务执行 |
 | SQLite 持久化 | `src/yuanbao_agent_platform/storage.py` | 持久化任务、执行结果、回写记录和验收报告 |
 | 显式队列恢复 | `src/yuanbao_agent_platform/storage.py`、`scheduler.py`、`platform.py` | 通过 `/scheduler/recover` 从 SQLite 恢复未完成任务，`RUNNING` 任务按中断处理并回到 `PENDING` |
+| 外部真实接入替代验证 | `demo_web.py`、`external_adapters.py`、`external_acceptance.py` | 使用本地真实 Web Demo、GitHub Actions、GitHub Issues Adapter 和 Markdown PRD 证明真实接入边界 |
 | 系统适配器 | `src/yuanbao_agent_platform/adapters.py` | 提供 CI/CD、缺陷、需求管理三个 InMemory Adapter |
 | 验收自检 | `src/yuanbao_agent_platform/acceptance.py` | 对照四方向端到端和至少两个系统对接生成验收报告 |
 | 知识库召回 | `src/yuanbao_agent_platform/knowledge.py` | 包含设置、搜索、会员、历史记录等多业务知识样例 |
@@ -85,6 +87,7 @@ python -m yuanbao_agent_platform.api
 关键接口：
 
 - `GET /acceptance/report`
+- `GET /acceptance/external-substitute`
 - `GET /storage/stats`
 - `POST /scheduler/recover`
 - `POST /demo/large-scale`

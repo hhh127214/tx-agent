@@ -52,6 +52,9 @@ class YuanbaoApi:
         if method == "GET" and path == "/acceptance/report":
             return 200, self._platform.run_acceptance_report()
 
+        if method == "GET" and path == "/acceptance/external-substitute":
+            return 200, self._platform.run_external_acceptance_demo()
+
         if method == "GET" and path == "/storage/stats":
             return 200, self._platform.store.stats()
 

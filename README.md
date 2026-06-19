@@ -31,6 +31,7 @@ python -m yuanbao_agent_platform.api
 - `GET /integrations`
 - `GET /adapters/health`
 - `GET /acceptance/report`
+- `GET /acceptance/external-substitute`
 - `GET /storage/stats`
 - `POST /scheduler/recover`
 - `POST /cases/convert`
@@ -85,6 +86,12 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/webhooks/ci-finished -
 Invoke-RestMethod http://127.0.0.1:8000/acceptance/report
 ```
 
+查看外部真实接入替代验收：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/acceptance/external-substitute
+```
+
 显式恢复 SQLite 中未完成队列任务：
 
 ```powershell
@@ -113,8 +120,12 @@ python -m unittest discover -s tests
 - `src/yuanbao_agent_platform/scheduler.py`：多场景调度、资源、重试、隔离
 - `src/yuanbao_agent_platform/executors.py`：GUI Agent 与后台自动化执行器模拟
 - `src/yuanbao_agent_platform/vlm.py`：VLM/GUI Agent 客户端协议、Mock 截图证据、真实服务接口骨架
+- `src/yuanbao_agent_platform/demo_web.py`：本地真实 Web 业务 Demo
+- `src/yuanbao_agent_platform/external_adapters.py`：GitHub Actions、GitHub Issues、Markdown PRD 外部适配器
+- `src/yuanbao_agent_platform/external_acceptance.py`：外部真实接入替代验收 Runner
 - `src/yuanbao_agent_platform/platform.py`：平台门面，串联端到端流程
 - `src/yuanbao_agent_platform/storage.py`：SQLite 持久化
 - `src/yuanbao_agent_platform/acceptance.py`：验收报告生成
 - `docs/current_engineering_state.md`：当前工程状态与验收覆盖说明
+- `docs/external_substitute_acceptance.md`：外部真实接入替代验收说明
 - `tests/`：核心能力测试

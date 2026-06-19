@@ -1,0 +1,40 @@
+name: Yuanbao Agent Self Test
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Agent scenario to run"
+        required: false
+        default: "dev_self_test"
+      target_url:
+        description: "External GUI target URL"
+        required: false
+        default: "local-demo-web"
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run unit tests
+        run: |
+          PYTHONPATH=src python -m unittest discover -s tests
+      - name: Run external substitute acceptance
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          import json
+          from tempfile import TemporaryDirectory
+          from pathlib import Path
+          from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
+          with TemporaryDirectory() as tmpdir:
+              platform = YuanbaoTestingPlatform(db_path=str(Path(tmpdir) / "platform.db"))
+              report = platform.run_external_acceptance_demo()
+              print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
+              assert report["summary"]["external_substitute_acceptance_passed"]
+          PY

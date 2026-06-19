@@ -8,6 +8,7 @@ from yuanbao_agent_platform.adapters import InternalAdapterRegistry
 from yuanbao_agent_platform.agents import BugRegressionAgent, NaturalLanguageCaseConverter, PRDTestDesignAgent
 from yuanbao_agent_platform.config import integration_config
 from yuanbao_agent_platform.executors import BackendAutomationExecutor, ExecutionRouter, GuiAgentSimulator, ResultAnalyzer
+from yuanbao_agent_platform.external_acceptance import ExternalAcceptanceRunner
 from yuanbao_agent_platform.integrations import IntegrationHub
 from yuanbao_agent_platform.metrics import MetricsCollector
 from yuanbao_agent_platform.models import (
@@ -250,6 +251,9 @@ class YuanbaoTestingPlatform:
             "loaded_from_store": len(tasks),
             "queue_snapshot": self.scheduler.queue_snapshot(),
         }
+
+    def run_external_acceptance_demo(self) -> Dict[str, Any]:
+        return ExternalAcceptanceRunner(self).run()
 
     def _submit_four_scenario_examples(self) -> List[Dict[str, Any]]:
         tasks = [
