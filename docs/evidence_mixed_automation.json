@@ -1,0 +1,43 @@
+{
+  "summary": {
+    "mixed_automation_passed": true,
+    "gui_and_backend_same_batch": true,
+    "batch_id": "mixed-dev-self-test-001"
+  },
+  "automation_type_counts": {
+    "BACKEND_AUTOMATION": 1,
+    "GUI_AGENT": 1
+  },
+  "scheduler_run_summary": {
+    "mode": "thread_pool_worker",
+    "max_workers": 2,
+    "iterations": 2,
+    "produced": 2
+  },
+  "results": [
+    {
+      "task_id": "task-fd1d40b0",
+      "case_id": "mixed-api-health-checkout-001",
+      "status": "PASS",
+      "reason": "Backend API assertions passed",
+      "resource": {
+        "type": "container",
+        "id": "container-1"
+      },
+      "execution_mode": "BACKEND_API_AUTOMATION",
+      "api_request_count": 2
+    },
+    {
+      "task_id": "task-f161bb98",
+      "case_id": "mixed-gui-notification-001",
+      "status": "PASS",
+      "reason": "VLM视觉执行与断言验证通过",
+      "resource": {
+        "type": "device",
+        "id": "device-1"
+      },
+      "execution_mode": "plan-mixed-gui-notification-001",
+      "api_request_count": null
+    }
+  ]
+}

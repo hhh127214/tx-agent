@@ -63,6 +63,9 @@ class ExternalAcceptanceTest(unittest.TestCase):
             self.assertGreaterEqual(report["scenario_counts"]["DEV_SELF_TEST"], 1)
             self.assertGreaterEqual(report["scenario_counts"]["REQUIREMENT_TEST"], 1)
             self.assertGreaterEqual(report["scenario_counts"]["BUG_REGRESSION"], 1)
+            self.assertTrue(report["mixed_automation"]["gui_and_backend_same_run"])
+            self.assertGreaterEqual(report["mixed_automation"]["automation_type_counts"]["GUI_AGENT"], 1)
+            self.assertGreaterEqual(report["mixed_automation"]["automation_type_counts"]["BACKEND_AUTOMATION"], 1)
 
     def test_external_adapters_expose_real_api_boundaries_without_tokens(self):
         registry = ExternalAdapterRegistry(
@@ -94,6 +97,7 @@ class ExternalAcceptanceTest(unittest.TestCase):
             self.assertTrue(report["summary"]["external_substitute_acceptance_passed"])
             self.assertEqual(fake_issues.written_issue_number, 42)
             self.assertEqual(report["external_systems"]["github_issue"]["number"], 42)
+            self.assertTrue(report["mixed_automation"]["gui_and_backend_same_run"])
 
     def test_external_acceptance_api_endpoint(self):
         with TemporaryDirectory() as tmpdir:

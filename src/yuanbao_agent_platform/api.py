@@ -64,6 +64,13 @@ class YuanbaoApi:
         if method == "POST" and path == "/cases/convert":
             return 200, self._platform.convert_manual_case(payload.get("case_id", "case-api-001"), payload["text"])
 
+        if method == "POST" and path == "/backend/convert":
+            return 200, self._platform.convert_backend_api_case(
+                payload.get("case_id", "backend-api-001"),
+                payload["text"],
+                payload["base_url"],
+            )
+
         if method == "POST" and path == "/prd/test-points":
             return 200, self._platform.generate_prd_test_points(payload.get("prd_id", "PRD-API-001"), payload["prd_text"])
 
@@ -91,6 +98,18 @@ class YuanbaoApi:
                 max_workers=int(payload.get("max_workers", 32)),
             )
 
+        if method == "POST" and path == "/demo/mixed-automation":
+            return 200, self._platform.run_mixed_automation_demo()
+
+        if method == "POST" and path == "/ci/gate":
+            return 200, self._platform.run_ci_gate(
+                pipeline_id=payload["pipeline_id"],
+                commit_sha=payload.get("commit_sha", ""),
+                artifact=payload.get("artifact", ""),
+                build_status=payload.get("build_status", "success"),
+                base_url=payload.get("base_url"),
+            )
+
         if method == "POST" and path == "/webhooks/bug-status-changed":
             return 202, {
                 "trigger": "bug_status_changed",
@@ -103,32 +122,26 @@ class YuanbaoApi:
         return 404, {"error": "NOT_FOUND", "path": path}
 
     def _handle_ci_finished(self, payload: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
-        case_id = payload.get("case_id", f"ci-{payload['pipeline_id']}")
-        idempotency_key = f"ci_finished:{payload['pipeline_id']}:{payload.get('commit_sha', '')}:{case_id}"
+        idempotency_key = f"ci_finished:{payload['pipeline_id']}:{payload.get('commit_sha', '')}:{payload.get('build_status', 'success')}"
         if idempotency_key in self._idempotency_cache:
             cached = dict(self._idempotency_cache[idempotency_key])
             cached["idempotent"] = True
             return 200, cached
 
-        task = self._platform.submit_manual_case(
-            Scenario.DEV_SELF_TEST,
-            case_id,
-            payload.get("case_text", "登录后进入我的页面，点击设置，关闭通知开关，验证开关状态保留。"),
-            TriggerType.CI,
-            metadata={
-                "pipeline_id": payload["pipeline_id"],
-                "commit_sha": payload.get("commit_sha"),
-                "artifact": payload.get("artifact"),
-                "ci_blocking": payload.get("ci_blocking", True),
-            },
+        gate = self._platform.run_ci_gate(
+            pipeline_id=payload["pipeline_id"],
+            commit_sha=payload.get("commit_sha", ""),
+            artifact=payload.get("artifact", ""),
+            build_status=payload.get("build_status", "success"),
+            base_url=payload.get("base_url"),
         )
-        results = self._platform.run_queued_tasks() if payload.get("run_immediately", True) else []
         response = {
             "trigger": "ci_finished",
             "idempotent": False,
             "idempotency_key": idempotency_key,
-            "task": asdict(task),
-            "results": results,
+            "gate": gate,
+            "scheduled_tasks": gate["scheduled_tasks"],
+            "results": gate["results"],
         }
         self._idempotency_cache[idempotency_key] = response
         return 202, response

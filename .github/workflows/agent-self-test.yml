@@ -76,6 +76,31 @@ jobs:
       - name: Run unit tests
         run: |
           PYTHONPATH=src python -m unittest discover -s tests
+      - name: Run CI gate smoke with GUI and backend automation
+        run: |
+          PYTHONPATH=src python - <<'PY'
+          import json
+          from tempfile import TemporaryDirectory
+          from pathlib import Path
+          from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
+          with TemporaryDirectory() as tmpdir:
+              platform = YuanbaoTestingPlatform(db_path=str(Path(tmpdir) / "platform.db"))
+              gate = platform.run_ci_gate(
+                  pipeline_id="github-actions-self-test",
+                  commit_sha="${{ github.sha }}",
+                  artifact="yuanbao-demo-build",
+                  build_status="success",
+              )
+              print(json.dumps({
+                  "gate": gate["gate"],
+                  "gate_passed": gate["gate_passed"],
+                  "automation_type_counts": gate["automation_type_counts"],
+                  "scheduled_tasks": gate["scheduled_tasks"],
+              }, ensure_ascii=False, indent=2))
+              assert gate["gate_passed"]
+              assert gate["automation_type_counts"].get("GUI_AGENT", 0) >= 1
+              assert gate["automation_type_counts"].get("BACKEND_AUTOMATION", 0) >= 1
+          PY
       - name: Run external substitute acceptance
         env:
           GITHUB_TOKEN: ${{ github.token }}

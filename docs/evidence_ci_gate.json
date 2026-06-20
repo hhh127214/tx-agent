@@ -1,0 +1,27 @@
+{
+  "success_gate": {
+    "gate": "PASS",
+    "gate_passed": true,
+    "scheduled_tasks": [
+      "task-0ca2e715",
+      "task-fba2ddc5"
+    ],
+    "automation_type_counts": {
+      "GUI_AGENT": 1,
+      "BACKEND_AUTOMATION": 1
+    },
+    "result_statuses": [
+      "PASS",
+      "PASS"
+    ]
+  },
+  "failed_build_gate": {
+    "gate": "BLOCKED_BEFORE_AGENT_TEST",
+    "reason": "CI build failed, agent tests are not scheduled",
+    "pipeline_id": "evidence-pipeline-fail",
+    "commit_sha": "bad",
+    "scheduled_tasks": [],
+    "results": [],
+    "gate_passed": false
+  }
+}

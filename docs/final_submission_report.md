@@ -2,7 +2,7 @@
 
 ## 0. 项目结果总览
 
-本项目围绕“元宝测试 Agent 建设”完成了一个可运行 MVP。目标不是传统 `XPath / ResourceId / 坐标` 驱动的自动化测试平台，而是面向 **Vision-Based GUI Agent** 的测试平台：用自然语言、PRD、BUG 复现步骤生成任务，由 Agent 通过页面视觉理解完成执行、验证和结果回写。
+本项目围绕“元宝测试 Agent 建设”完成了一个可运行 MVP。目标不是传统 `XPath / ResourceId / 坐标` 驱动的自动化测试平台，而是自然语言驱动的 **GUI Agent UI 自动化 + 后台接口自动化统一测试执行平台**：用户输入自然语言手工用例、PRD 或 BUG 复现步骤，平台内部转换为 IR / AgentPlan / API Case，再统一调度 GUI Agent 和 Backend API 自动化执行、验证和结果回写。
 
 仓库地址：`https://github.com/hhh127214/tx-agent.git`
 
@@ -14,6 +14,8 @@
 | 考题二：自然语言用例转 Agent 可执行用例 | 已实现 NL → IR → AgentPlan，不依赖 XPath / 坐标 | 第 2 节 |
 | 考题三：BUG 回归端到端方案 | 已实现 Issue 拉取、任务生成、Agent 执行、三态回写 | 第 3 节 |
 | 考题四：PRD 召回知识库生成测试点 | 已实现关键词提取、混合召回、结构化 JSON 测试点 | 第 4 节 |
+| GUI + Backend 混合调度 | 已实现同一批次调度 `GUI_AGENT` 与 `BACKEND_AUTOMATION` | 第 1、5 节 |
+| CI/CD 提测准入 gate | 已实现构建失败阻断、构建成功后执行 UI 冒烟 + API 冒烟 | 第 5、6 节 |
 | 四类方向各跑通 1 个业务场景 | 已完成外部真实替代验收 | 第 5 节 |
 | 至少对接 2 个外部系统 | 已对接 GitHub Actions、GitHub Issues、Markdown PRD | 第 5 节 |
 
@@ -28,7 +30,7 @@
 1. 定义四类任务类型：`INTEGRATION_BATCH`、`DEV_SELF_TEST`、`REQUIREMENT_TEST`、`BUG_REGRESSION`。
 2. 为每类任务配置优先级、资源配额、并发度、超时时间、重试次数。
 3. 实现调度器：任务入队后按照优先级和资源策略分配执行资源。
-4. 实现 Agent Runtime Session：每个任务独立执行，记录 `observe / think / act / verify` trace。
+4. 实现统一执行路由：`GUI_AGENT` 任务进入 GUI Agent Runtime，`BACKEND_AUTOMATION` 任务进入 Backend API Executor。
 5. 实现失败处理：失败重试、超时释放资源、连续失败进入 quarantine 隔离。
 6. 实现 SQLite 持久化：任务、结果、回写记录可落库，重启后可恢复未完成任务。
 7. 实现结果回写：根据任务来源回写到报告中心、CI、需求系统或缺陷系统。
@@ -41,6 +43,15 @@
 | 开发自测 | 高 | CI 专用资源 | 快速反馈 | 短超时 | CI/CD |
 | 需求测试 | 中 | 按需求单分组 | 中等并发 | 中等超时 | 需求报告 |
 | 集成测试批量 | 低 | 批量资源池 | 可大批量并发 | 长超时 | 测试报告 |
+
+混合执行结果：
+
+| 自动化类型 | 示例任务 | 执行资源 | 结果证据 |
+|---|---|---|---|
+| `GUI_AGENT` | 登录后关闭通知开关并验证状态保持 | device | `docs/evidence_mixed_automation.json` |
+| `BACKEND_AUTOMATION` | 调用健康检查接口和下单接口并断言响应 | container | `docs/evidence_mixed_automation.json` |
+
+混合调度证据文件：`docs/evidence_mixed_automation.json`，其中 `automation_type_counts` 同时包含 `GUI_AGENT` 和 `BACKEND_AUTOMATION`。
 
 调度结果证据：四类方向均至少执行 1 个任务。
 
@@ -56,6 +67,7 @@
 |---|---|
 | 任务接入层、调度层、执行层、结果回写层 | 已实现 API 接入、Scheduler、Agent Runtime、Result Writeback |
 | 四类任务差异化处理 | 已按优先级、资源配额、并发度、超时策略区分 |
+| 同时调度 GUI Agent 和后台自动化 | 已实现统一 Scheduler + ExecutionRouter，GUI 使用 device，Backend 使用 container |
 | 失败重试 | 已实现 retry 策略 |
 | 回滚 / 资源释放 | 任务结束或超时后释放 session 与资源 |
 | 避免问题用例长期占用资源 | 已实现 quarantine 隔离策略 |
@@ -219,14 +231,14 @@ PRD 输入证据：
 
 ---
 
-## 5. 四方向真实业务替代接入结果
+## 5. 四方向真实业务替代接入与混合自动化结果
 
 ### 5.1 四方向跑通情况
 
 | 方向 | 业务案例 | 外部系统 / 输入源 | 最终结果 |
 |---|---|---|---|
 | 集成测试批量执行 | 搜索 `Yuanbao` 并验证结果列表 | 本地真实 HTTP Web Demo | ✅ 跑通 |
-| 开发自测 | Push 后自动验证通知设置链路 | GitHub Actions | ✅ 跑通 |
+| 开发自测 | Push 后自动验证通知设置链路 + Backend API 冒烟 | GitHub Actions | ✅ 跑通 |
 | 需求测试 | 通知设置 PRD 生成测试点 | Markdown PRD 文件 | ✅ 跑通 |
 | BUG 回归 | 通知开关关闭后重新进入设置页状态保持 | GitHub Issues | ✅ 跑通 |
 
@@ -238,7 +250,30 @@ PRD 输入证据：
 
 ![外部系统接入 payload 证据](assets/external_systems_payload.png)
 
-### 5.2 本地 Web Demo 业务证据
+### 5.2 GUI + Backend 混合自动化证据
+
+本项目新增了后台接口自动化闭环：
+
+```text
+自然语言后台用例
+  ↓
+Backend API Case IR
+  ↓
+BackendAutomationExecutor
+  ↓
+真实 HTTP API 请求
+  ↓
+状态码 / JSON 响应断言
+  ↓
+PASS / FAIL / UNKNOWN 结果
+```
+
+混合调度证据：
+
+- `docs/evidence_mixed_automation.json`：同一批次内同时执行 GUI 任务和 Backend API 任务。
+- `docs/evidence_ci_gate.json`：CI 构建成功后执行 UI 冒烟 + API 冒烟；构建失败时不进入 Agent 测试调度。
+
+### 5.3 本地 Web Demo 业务证据
 
 登录页：
 
@@ -252,14 +287,15 @@ PRD 输入证据：
 
 ![本地 Web Demo 通知开关关闭证据](assets/demo_web_notification_off.png)
 
-### 5.3 验收结论
+### 5.4 验收结论
 
 本项目已完成：
 
 - 集成测试：搜索业务。
-- 开发自测：通知设置链路。
+- 开发自测：通知设置 GUI 链路 + Backend API 冒烟。
 - 需求测试：通知设置 PRD。
 - BUG 回归：通知开关状态保持缺陷。
+- 混合调度：同一批次执行 `GUI_AGENT` 与 `BACKEND_AUTOMATION`。
 
 四类方向均完成：业务输入 → Agent 任务生成 → 调度执行 → 结果输出 → 外部系统或报告回写。
 
@@ -274,13 +310,16 @@ PRD 输入证据：
 - 进入项目：`cd C:\Users\17128\Documents\tx-yuanbao`
 - 设置路径：`$env:PYTHONPATH="src"`
 - 运行测试：`python -m unittest discover -s tests`
-- 当前结果：`Ran 25 tests ... OK`
+- 当前结果：`Ran 29 tests ... OK`
 
 ### 6.2 启动 API
 
 - 启动服务：`python -m yuanbao_agent_platform.api`
 - 健康检查：`GET http://127.0.0.1:8000/health`
 - 外部替代验收：`GET http://127.0.0.1:8000/acceptance/external-substitute`
+- Backend 用例转换：`POST http://127.0.0.1:8000/backend/convert`
+- GUI + Backend 混合调度：`POST http://127.0.0.1:8000/demo/mixed-automation`
+- CI/CD gate：`POST http://127.0.0.1:8000/ci/gate`
 - PRD 测试点生成：`POST http://127.0.0.1:8000/prd/test-points`
 
 ### 6.3 启动本地 Web Demo
@@ -292,17 +331,19 @@ PRD 输入证据：
 
 ## 7. 最终结论
 
-本项目完成了“元宝 GUI Agent 测试平台 MVP”的工程实现，四个考题均有对应代码、流程和结果证据。
+本项目完成了“元宝 GUI Agent + Backend API 统一测试执行平台 MVP”的工程实现，四个考题均有对应代码、流程和结果证据。
 
 最终结果：
 
 - ✅ 多场景调度引擎已实现。
+- ✅ GUI Agent UI 自动化与 Backend API 自动化混合调度已实现。
 - ✅ 自然语言测试用例转换已实现。
+- ✅ 自然语言后台接口用例转换与真实 HTTP API 断言已实现。
 - ✅ BUG 回归闭环已实现。
 - ✅ PRD 自动生成测试点已实现。
 - ✅ `PASS / FAIL / UNKNOWN` 三态结果已实现。
 - ✅ 页面改版 / 复现路径失效后的重新观察、重新规划、重跑机制已设计。
-- ✅ GitHub Actions 真实 CI 替代接入已验证。
+- ✅ GitHub Actions 真实 CI 替代接入与 UI/API 冒烟 gate 已验证。
 - ✅ GitHub Issues 真实缺陷系统替代接入已验证。
 - ✅ 四类业务方向均完成真实业务替代验证。
 - ✅ 至少两个外部系统完成真实对接，实际覆盖 GitHub Actions、GitHub Issues、Markdown PRD 三类。

@@ -40,6 +40,20 @@ class ExternalAcceptanceRunner:
                     "writeback_target": "ci_cd",
                 },
             )
+            backend_task = self._platform.submit_backend_api_case(
+                Scenario.DEV_SELF_TEST,
+                "external-backend-api-001",
+                "调用 Demo Web 健康检查接口和下单接口，验证服务正常且订单状态为 submitted。",
+                base_url,
+                TriggerType.CI,
+                metadata={
+                    "external_ci_system": "github_actions",
+                    "base_url": base_url,
+                    "ci_blocking": True,
+                    "writeback_target": "ci_cd",
+                    "mixed_batch_id": "external-ui-api-acceptance",
+                },
+            )
             prd = self._adapters.markdown_prd.fetch_prd("external_demo_prd")
             test_points = self._platform.generate_prd_test_points(prd["prd_id"], prd["prd_text"])
             issues = self._adapters.github_issues.fetch_waiting_regression()
@@ -67,6 +81,7 @@ class ExternalAcceptanceRunner:
                 metadata={"external_requirement_system": "markdown_prd", "requirement_id": prd["prd_id"]},
             )
             results = self._platform.run_queued_tasks(max_workers=4)
+            automation_type_counts = self._platform._automation_counts_for_results(results)
             bug_result = next(item for item in results if item["task_id"] == bug_task.task_id)
             issue_writeback = self._adapters.github_issues.write_regression_result(
                 issue_number=int(issue["number"]),
@@ -82,7 +97,13 @@ class ExternalAcceptanceRunner:
             )["scenario_counts"]
             return {
                 "summary": {
-                    "external_substitute_acceptance_passed": self._passed(web_probe, scenario_counts, dev_self_test, issue_writeback),
+                    "external_substitute_acceptance_passed": self._passed(
+                        web_probe,
+                        scenario_counts,
+                        dev_self_test,
+                        issue_writeback,
+                        automation_type_counts,
+                    ),
                     "strict_yuanbao_internal_acceptance_passed": False,
                     "reason": "使用本地真实Web系统、GitHub Actions/GitHub Issues适配边界与Markdown PRD完成外部可验证替代闭环；真实元宝内网接入仍需公司权限。",
                 },
@@ -97,8 +118,15 @@ class ExternalAcceptanceRunner:
                 "tasks": {
                     "integration_batch": integration_task.task_id,
                     "dev_self_test": dev_task.task_id,
+                    "backend_api_self_test": backend_task.task_id,
                     "bug_regression": bug_task.task_id,
                     "requirement_test": requirement_task.task_id,
+                },
+                "mixed_automation": {
+                    "batch_id": "external-ui-api-acceptance",
+                    "automation_type_counts": automation_type_counts,
+                    "gui_and_backend_same_run": automation_type_counts.get("GUI_AGENT", 0) >= 1
+                    and automation_type_counts.get("BACKEND_AUTOMATION", 0) >= 1,
                 },
                 "scenario_counts": scenario_counts,
                 "results": results,
@@ -126,13 +154,22 @@ class ExternalAcceptanceRunner:
     def _get_json(self, url: str) -> Dict[str, Any]:
         return json.loads(self._get_text(url))
 
-    def _passed(self, web_probe: Dict[str, Any], scenario_counts: Dict[str, int], dev_self_test: Dict[str, Any], issue_writeback: Dict[str, Any]) -> bool:
+    def _passed(
+        self,
+        web_probe: Dict[str, Any],
+        scenario_counts: Dict[str, int],
+        dev_self_test: Dict[str, Any],
+        issue_writeback: Dict[str, Any],
+        automation_type_counts: Dict[str, int],
+    ) -> bool:
         return (
             bool(web_probe["passed"])
             and scenario_counts.get("INTEGRATION_BATCH", 0) >= 1
             and scenario_counts.get("DEV_SELF_TEST", 0) >= 1
             and scenario_counts.get("REQUIREMENT_TEST", 0) >= 1
             and scenario_counts.get("BUG_REGRESSION", 0) >= 1
+            and automation_type_counts.get("GUI_AGENT", 0) >= 1
+            and automation_type_counts.get("BACKEND_AUTOMATION", 0) >= 1
             and dev_self_test["system"] == "github_actions"
             and issue_writeback["system"] == "github_issues"
         )

@@ -2,6 +2,7 @@ import unittest
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
+from yuanbao_agent_platform.demo_web import run_demo_web_server
 from yuanbao_agent_platform.models import BugReport, ResultStatus, Scenario, TaskStatus, TriggerType
 from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
 from yuanbao_agent_platform.vlm import MockVisionAgentClient, OpenAICompatibleVisionAgentClient
@@ -94,6 +95,66 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
         automation_types = {point["automation_type"] for point in result["test_points"]}
         self.assertIn("GUI_AGENT", automation_types)
         self.assertIn("BACKEND_AUTOMATION", automation_types)
+
+    def test_backend_api_case_uses_natural_language_and_real_http_assertions(self):
+        with run_demo_web_server() as base_url:
+            converted = self.platform.convert_backend_api_case(
+                "backend-api-natural-language-001",
+                "调用健康检查接口和下单接口，验证服务状态正常并返回 submitted 订单状态。",
+                base_url,
+            )
+            self.assertEqual(converted["input_type"], "natural_language_manual_case")
+            self.assertEqual(converted["internal_ir"]["automation_type"], "BACKEND_AUTOMATION")
+            self.assertGreaterEqual(len(converted["internal_ir"]["api_requests"]), 2)
+
+            task = self.platform.submit_backend_api_case(
+                Scenario.DEV_SELF_TEST,
+                "backend-api-natural-language-001",
+                converted["source_text"],
+                base_url,
+                TriggerType.CI,
+                metadata={"ci_blocking": True, "writeback_target": "ci_cd"},
+            )
+            results = self.platform.run_queued_tasks(max_workers=1)
+
+            self.assertEqual(results[0]["task_id"], task.task_id)
+            self.assertEqual(results[0]["status"], ResultStatus.PASS.value)
+            self.assertEqual(results[0]["metadata"]["execution_mode"], "BACKEND_API_AUTOMATION")
+            self.assertEqual(results[0]["metadata"]["resource"]["type"], "container")
+            self.assertTrue(all(action["passed"] for action in results[0]["trace"]["actions"]))
+
+    def test_mixed_scheduler_runs_gui_and_backend_in_same_batch(self):
+        result = self.platform.run_mixed_automation_demo()
+
+        self.assertTrue(result["summary"]["mixed_automation_passed"])
+        self.assertTrue(result["summary"]["gui_and_backend_same_batch"])
+        self.assertGreaterEqual(result["automation_type_counts"]["GUI_AGENT"], 1)
+        self.assertGreaterEqual(result["automation_type_counts"]["BACKEND_AUTOMATION"], 1)
+        resources = {item["metadata"]["resource"]["type"] for item in result["results"]}
+        self.assertIn("device", resources)
+        self.assertIn("container", resources)
+
+    def test_ci_gate_blocks_on_failed_build_and_runs_ui_plus_api_on_success(self):
+        blocked = self.platform.run_ci_gate(
+            pipeline_id="pipeline-blocked",
+            commit_sha="bad",
+            artifact="yuanbao-debug.apk",
+            build_status="failed",
+        )
+        self.assertEqual(blocked["gate"], "BLOCKED_BEFORE_AGENT_TEST")
+        self.assertFalse(blocked["scheduled_tasks"])
+
+        passed = self.platform.run_ci_gate(
+            pipeline_id="pipeline-pass",
+            commit_sha="good",
+            artifact="yuanbao-debug.apk",
+            build_status="success",
+        )
+        self.assertEqual(passed["gate"], "PASS")
+        self.assertTrue(passed["gate_passed"])
+        self.assertEqual(len(passed["scheduled_tasks"]), 2)
+        self.assertGreaterEqual(passed["automation_type_counts"]["GUI_AGENT"], 1)
+        self.assertGreaterEqual(passed["automation_type_counts"]["BACKEND_AUTOMATION"], 1)
 
     def test_vlm_status_uses_confidence_and_visual_mismatch_not_keywords(self):
         with TemporaryDirectory() as tmpdir:

@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from yuanbao_agent_platform.api import YuanbaoApi
+from yuanbao_agent_platform.demo_web import run_demo_web_server
 from yuanbao_agent_platform.models import Scenario
 from yuanbao_agent_platform.platform import YuanbaoTestingPlatform
 
@@ -33,6 +34,27 @@ class YuanbaoApiTest(unittest.TestCase):
 
         self.assertEqual(status, 200)
         self.assertEqual(body["agent_plan"]["context"]["execution_mode"], "VISION_BASED_GUI_AGENT")
+
+    def test_backend_convert_and_mixed_demo_endpoints(self):
+        with run_demo_web_server() as base_url:
+            status, body = self.api.handle(
+                "POST",
+                "/backend/convert",
+                {
+                    "case_id": "backend-api-001",
+                    "text": "调用健康检查接口和下单接口，验证服务状态正常并返回 submitted 订单状态。",
+                    "base_url": base_url,
+                },
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(body["input_type"], "natural_language_manual_case")
+            self.assertEqual(body["internal_ir"]["automation_type"], "BACKEND_AUTOMATION")
+
+        status, mixed = self.api.handle("POST", "/demo/mixed-automation", {})
+        self.assertEqual(status, 200)
+        self.assertTrue(mixed["summary"]["mixed_automation_passed"])
+        self.assertGreaterEqual(mixed["automation_type_counts"]["GUI_AGENT"], 1)
+        self.assertGreaterEqual(mixed["automation_type_counts"]["BACKEND_AUTOMATION"], 1)
 
     def test_policy_and_metrics_endpoints(self):
         api = self.api
@@ -95,6 +117,22 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(status, 202)
         self.assertEqual(ci_body["trigger"], "ci_finished")
         self.assertTrue(ci_body["results"])
+        self.assertTrue(ci_body["gate"]["gate_passed"])
+        self.assertGreaterEqual(ci_body["gate"]["automation_type_counts"]["BACKEND_AUTOMATION"], 1)
+
+        status, gate_blocked = api.handle(
+            "POST",
+            "/ci/gate",
+            {
+                "pipeline_id": "pipeline-blocked",
+                "commit_sha": "bad",
+                "artifact": "yuanbao-debug.apk",
+                "build_status": "failed",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(gate_blocked["gate"], "BLOCKED_BEFORE_AGENT_TEST")
+        self.assertFalse(gate_blocked["scheduled_tasks"])
 
     def test_ci_webhook_is_idempotent(self):
         api = self.api
@@ -112,8 +150,8 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(second_status, 200)
         self.assertFalse(first_body["idempotent"])
         self.assertTrue(second_body["idempotent"])
-        self.assertEqual(first_body["task"]["task_id"], second_body["task"]["task_id"])
-        self.assertEqual(len(api._platform.scheduler.submitted_tasks), 1)
+        self.assertEqual(first_body["scheduled_tasks"], second_body["scheduled_tasks"])
+        self.assertEqual(len(api._platform.scheduler.submitted_tasks), 2)
 
     def test_large_scale_endpoint(self):
         status, body = self.api.handle(

@@ -7,6 +7,7 @@ from yuanbao_agent_platform.acceptance import AcceptanceReporter
 from yuanbao_agent_platform.adapters import InternalAdapterRegistry
 from yuanbao_agent_platform.agents import BugRegressionAgent, NaturalLanguageCaseConverter, PRDTestDesignAgent
 from yuanbao_agent_platform.config import integration_config
+from yuanbao_agent_platform.demo_web import run_demo_web_server
 from yuanbao_agent_platform.executors import BackendAutomationExecutor, ExecutionRouter, GuiAgentSimulator, ResultAnalyzer
 from yuanbao_agent_platform.external_acceptance import ExternalAcceptanceRunner
 from yuanbao_agent_platform.integrations import IntegrationHub
@@ -111,6 +112,168 @@ class YuanbaoTestingPlatform:
             metadata=metadata or {},
         )
         return self.submit_case(scenario, test_case, TriggerType.CI if scenario == Scenario.DEV_SELF_TEST else TriggerType.MANUAL)
+
+    def convert_backend_api_case(self, case_id: str, text: str, base_url: str) -> Dict[str, Any]:
+        api_requests = self._backend_api_requests_from_text(base_url, text)
+        return {
+            "input_type": "natural_language_manual_case",
+            "case_id": case_id,
+            "source_text": text,
+            "internal_ir": {
+                "automation_type": AutomationType.BACKEND_AUTOMATION.value,
+                "target_system": base_url,
+                "api_requests": api_requests,
+                "assertion_policy": "status_code_and_response_body",
+            },
+        }
+
+    def submit_backend_api_case(
+        self,
+        scenario: Scenario,
+        case_id: str,
+        text: str,
+        base_url: str,
+        trigger_type: TriggerType = TriggerType.CI,
+        metadata: Dict[str, Any] = None,
+    ) -> Task:
+        api_requests = self._backend_api_requests_from_text(base_url, text)
+        test_case = TestCase(
+            case_id=case_id,
+            title=text,
+            automation_type=AutomationType.BACKEND_AUTOMATION,
+            steps=[
+                TestStep(
+                    step_id=f"api-{index}",
+                    intent="api_assert",
+                    target_semantics=item["url"],
+                    expected_state=f"HTTP {item.get('expected_status', 200)} and response assertions pass",
+                )
+                for index, item in enumerate(api_requests, start=1)
+            ],
+            source="natural_language_backend_case",
+            metadata={
+                "source_text": text,
+                "api_requests": api_requests,
+                "backend_case_ir": self.convert_backend_api_case(case_id, text, base_url)["internal_ir"],
+                **(metadata or {}),
+            },
+        )
+        return self.submit_case(scenario, test_case, trigger_type)
+
+    def run_mixed_automation_demo(self) -> Dict[str, Any]:
+        with run_demo_web_server() as base_url:
+            gui_task = self.submit_manual_case(
+                Scenario.DEV_SELF_TEST,
+                "mixed-gui-notification-001",
+                "登录后进入我的页面，点击设置，关闭通知开关，验证关闭状态保留。",
+                TriggerType.CI,
+                metadata={
+                    "ci_blocking": True,
+                    "base_url": base_url,
+                    "writeback_target": "ci_cd",
+                    "mixed_batch_id": "mixed-dev-self-test-001",
+                },
+            )
+            backend_task = self.submit_backend_api_case(
+                Scenario.DEV_SELF_TEST,
+                "mixed-api-health-checkout-001",
+                "调用健康检查接口和下单接口，验证服务状态正常并返回 submitted 订单状态。",
+                base_url,
+                TriggerType.CI,
+                metadata={
+                    "ci_blocking": True,
+                    "writeback_target": "ci_cd",
+                    "mixed_batch_id": "mixed-dev-self-test-001",
+                },
+            )
+            results = self.run_queued_tasks(max_workers=2)
+            automation_counts = self._automation_counts_for_results(results)
+            all_passed = all(result["status"] == ResultStatus.PASS.value for result in results)
+            return {
+                "summary": {
+                    "mixed_automation_passed": all_passed,
+                    "gui_and_backend_same_batch": automation_counts.get("GUI_AGENT", 0) >= 1
+                    and automation_counts.get("BACKEND_AUTOMATION", 0) >= 1,
+                    "batch_id": "mixed-dev-self-test-001",
+                },
+                "base_url": base_url,
+                "tasks": {
+                    "gui": gui_task.task_id,
+                    "backend": backend_task.task_id,
+                },
+                "automation_type_counts": automation_counts,
+                "scheduler_run_summary": self.scheduler.run_summary(),
+                "results": results,
+            }
+
+    def run_ci_gate(
+        self,
+        pipeline_id: str,
+        commit_sha: str = "",
+        artifact: str = "",
+        build_status: str = "success",
+        base_url: str = None,
+    ) -> Dict[str, Any]:
+        if build_status != "success":
+            return {
+                "gate": "BLOCKED_BEFORE_AGENT_TEST",
+                "reason": "CI build failed, agent tests are not scheduled",
+                "pipeline_id": pipeline_id,
+                "commit_sha": commit_sha,
+                "scheduled_tasks": [],
+                "results": [],
+                "gate_passed": False,
+            }
+
+        if base_url:
+            return self._run_ci_gate_on_base_url(pipeline_id, commit_sha, artifact, base_url)
+        with run_demo_web_server() as demo_base_url:
+            return self._run_ci_gate_on_base_url(pipeline_id, commit_sha, artifact, demo_base_url)
+
+    def _run_ci_gate_on_base_url(self, pipeline_id: str, commit_sha: str, artifact: str, base_url: str) -> Dict[str, Any]:
+        gui_task = self.submit_manual_case(
+            Scenario.DEV_SELF_TEST,
+            f"ci-gui-{pipeline_id}",
+            "CI 构建成功后，执行登录、进入设置、关闭通知开关并验证状态保持。",
+            TriggerType.CI,
+            metadata={
+                "pipeline_id": pipeline_id,
+                "commit_sha": commit_sha,
+                "artifact": artifact,
+                "ci_blocking": True,
+                "base_url": base_url,
+                "writeback_target": "ci_cd",
+                "gate_stage": "ui_smoke",
+            },
+        )
+        backend_task = self.submit_backend_api_case(
+            Scenario.DEV_SELF_TEST,
+            f"ci-api-{pipeline_id}",
+            "CI 构建成功后，执行健康检查接口和下单接口冒烟验证。",
+            base_url,
+            TriggerType.CI,
+            metadata={
+                "pipeline_id": pipeline_id,
+                "commit_sha": commit_sha,
+                "artifact": artifact,
+                "ci_blocking": True,
+                "writeback_target": "ci_cd",
+                "gate_stage": "api_smoke",
+            },
+        )
+        results = self.run_queued_tasks(max_workers=2)
+        gate_passed = bool(results) and all(result["status"] == ResultStatus.PASS.value for result in results)
+        return {
+            "gate": "PASS" if gate_passed else "FAIL",
+            "pipeline_id": pipeline_id,
+            "commit_sha": commit_sha,
+            "artifact": artifact,
+            "base_url": base_url,
+            "scheduled_tasks": [gui_task.task_id, backend_task.task_id],
+            "automation_type_counts": self._automation_counts_for_results(results),
+            "results": results,
+            "gate_passed": gate_passed,
+        }
 
     def run_bug_regression(self, bug: BugReport) -> BugRegressionResult:
         regression_case = self.bug_agent.build_regression_case(bug)
@@ -299,6 +462,37 @@ class YuanbaoTestingPlatform:
             }
             for task in tasks
         ]
+
+    def _backend_api_requests_from_text(self, base_url: str, text: str) -> List[Dict[str, Any]]:
+        requests = [
+            {
+                "name": "health_check",
+                "method": "GET",
+                "url": f"{base_url}/health",
+                "expected_status": 200,
+                "expected_json": {"status": "ok", "service": "yuanbao-demo-web"},
+            }
+        ]
+        if any(keyword in text.lower() for keyword in ["checkout", "order", "submitted", "下单", "订单"]):
+            requests.append(
+                {
+                    "name": "checkout_status",
+                    "method": "GET",
+                    "url": f"{base_url}/checkout",
+                    "expected_status": 200,
+                    "expected_json": {"status": "submitted"},
+                }
+            )
+        return requests
+
+    def _automation_counts_for_results(self, results: List[Dict[str, Any]]) -> Dict[str, int]:
+        task_by_id = {task.task_id: task for task in self.scheduler.submitted_tasks}
+        counts: Dict[str, int] = {}
+        for result in results:
+            task = task_by_id.get(result["task_id"])
+            automation_type = task.case.automation_type.value if task else "UNKNOWN"
+            counts[automation_type] = counts.get(automation_type, 0) + 1
+        return counts
 
     def _bug_conclusion(self, status: ResultStatus, bug: BugReport) -> str:
         if status == ResultStatus.PASS:
