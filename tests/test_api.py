@@ -56,6 +56,11 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertGreaterEqual(mixed["automation_type_counts"]["GUI_AGENT"], 1)
         self.assertGreaterEqual(mixed["automation_type_counts"]["BACKEND_AUTOMATION"], 1)
 
+        status, trace = self.api.handle("POST", "/demo/business-trace", {})
+        self.assertEqual(status, 200)
+        self.assertTrue(trace["summary"]["business_trace_passed"])
+        self.assertEqual(trace["unified_decision"], "PASS")
+
     def test_policy_and_metrics_endpoints(self):
         api = self.api
 
@@ -133,6 +138,32 @@ class YuanbaoApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(gate_blocked["gate"], "BLOCKED_BEFORE_AGENT_TEST")
         self.assertFalse(gate_blocked["scheduled_tasks"])
+
+    def test_review_queue_endpoints(self):
+        self.api._platform.submit_manual_case(
+            scenario=Scenario.DEV_SELF_TEST,
+            case_id="case-api-review-unknown-001",
+            text="登录后进入我的页面，点击设置，验证页面状态。",
+            metadata={"force_status": "UNKNOWN", "vision_confidence": 0.42},
+        )
+        self.api.handle("POST", "/tasks/run", {})
+
+        status, queue = self.api.handle("GET", "/reviews", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(queue["pending_count"], 1)
+
+        status, resolved = self.api.handle(
+            "POST",
+            "/reviews/resolve",
+            {
+                "review_id": queue["items"][0]["review_id"],
+                "final_status": "FAIL",
+                "reviewer": "tester",
+                "note": "人工确认失败",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(resolved["review_status"], "RESOLVED")
 
     def test_ci_webhook_is_idempotent(self):
         api = self.api

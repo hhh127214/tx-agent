@@ -53,6 +53,8 @@
 
 混合调度证据文件：`docs/evidence_mixed_automation.json`，其中 `automation_type_counts` 同时包含 `GUI_AGENT` 和 `BACKEND_AUTOMATION`。
 
+同一业务链路证据文件：`docs/evidence_business_trace.json`，展示“GUI 关闭通知开关 → Backend 查询通知状态 → 统一 PASS/FAIL 判断”的端到端 trace。
+
 调度结果证据：四类方向均至少执行 1 个任务。
 
 ![四方向 scenario_counts 证据](assets/acceptance_scenario_counts.png)
@@ -272,8 +274,35 @@ PASS / FAIL / UNKNOWN 结果
 
 - `docs/evidence_mixed_automation.json`：同一批次内同时执行 GUI 任务和 Backend API 任务。
 - `docs/evidence_ci_gate.json`：CI 构建成功后执行 UI 冒烟 + API 冒烟；构建失败时不进入 Agent 测试调度。
+- `docs/evidence_business_trace.json`：同一业务链路先执行 GUI 通知开关操作，再通过 Backend API 查询 `notification_enabled=false`，最后给出统一结论。
 
-### 5.3 本地 Web Demo 业务证据
+同一业务链路总览证据：
+
+![同一业务链路 trace 总览证据](assets/business_trace_summary.png)
+
+Backend 状态复核证据：
+
+![Backend 通知状态复核证据](assets/business_trace_backend_state.png)
+
+### 5.3 UNKNOWN 人工复核闭环证据
+
+针对不稳定复现、低置信度、页面变化等情况，平台不会强行把所有问题判成失败，而是进入 `UNKNOWN`。新增复核队列后，`UNKNOWN` 结果会保留：
+
+- `review_id`
+- `case_id`
+- `reason`
+- `trace_id`
+- `screenshots`
+- `actions`
+- `confidence`
+
+人工查看截图、trace 和原因后，可以将该项标记为最终 `PASS / FAIL / UNKNOWN`。证据文件：`docs/evidence_review_queue.json`。
+
+UNKNOWN 人工复核完成证据：
+
+![UNKNOWN 人工复核完成证据](assets/review_queue_resolved.png)
+
+### 5.4 本地 Web Demo 业务证据
 
 登录页：
 
@@ -287,7 +316,7 @@ PASS / FAIL / UNKNOWN 结果
 
 ![本地 Web Demo 通知开关关闭证据](assets/demo_web_notification_off.png)
 
-### 5.4 验收结论
+### 5.5 验收结论
 
 本项目已完成：
 
@@ -296,6 +325,8 @@ PASS / FAIL / UNKNOWN 结果
 - 需求测试：通知设置 PRD。
 - BUG 回归：通知开关状态保持缺陷。
 - 混合调度：同一批次执行 `GUI_AGENT` 与 `BACKEND_AUTOMATION`。
+- 同一链路：GUI 操作后由 Backend API 复核状态。
+- UNKNOWN：进入人工复核队列并可被人工确认最终结论。
 
 四类方向均完成：业务输入 → Agent 任务生成 → 调度执行 → 结果输出 → 外部系统或报告回写。
 
@@ -310,7 +341,7 @@ PASS / FAIL / UNKNOWN 结果
 - 进入项目：`cd C:\Users\17128\Documents\tx-yuanbao`
 - 设置路径：`$env:PYTHONPATH="src"`
 - 运行测试：`python -m unittest discover -s tests`
-- 当前结果：`Ran 29 tests ... OK`
+- 当前结果：`Ran 32 tests ... OK`
 
 ### 6.2 启动 API
 
@@ -319,7 +350,10 @@ PASS / FAIL / UNKNOWN 结果
 - 外部替代验收：`GET http://127.0.0.1:8000/acceptance/external-substitute`
 - Backend 用例转换：`POST http://127.0.0.1:8000/backend/convert`
 - GUI + Backend 混合调度：`POST http://127.0.0.1:8000/demo/mixed-automation`
+- 同一业务链路 trace：`POST http://127.0.0.1:8000/demo/business-trace`
 - CI/CD gate：`POST http://127.0.0.1:8000/ci/gate`
+- UNKNOWN 复核队列：`GET http://127.0.0.1:8000/reviews`
+- 处理复核项：`POST http://127.0.0.1:8000/reviews/resolve`
 - PRD 测试点生成：`POST http://127.0.0.1:8000/prd/test-points`
 
 ### 6.3 启动本地 Web Demo
@@ -339,9 +373,11 @@ PASS / FAIL / UNKNOWN 结果
 - ✅ GUI Agent UI 自动化与 Backend API 自动化混合调度已实现。
 - ✅ 自然语言测试用例转换已实现。
 - ✅ 自然语言后台接口用例转换与真实 HTTP API 断言已实现。
+- ✅ 同一业务链路 GUI 操作 + Backend 状态复核 trace 已实现。
 - ✅ BUG 回归闭环已实现。
 - ✅ PRD 自动生成测试点已实现。
 - ✅ `PASS / FAIL / UNKNOWN` 三态结果已实现。
+- ✅ `UNKNOWN` 人工复核队列与人工确认闭环已实现。
 - ✅ 页面改版 / 复现路径失效后的重新观察、重新规划、重跑机制已设计。
 - ✅ GitHub Actions 真实 CI 替代接入与 UI/API 冒烟 gate 已验证。
 - ✅ GitHub Issues 真实缺陷系统替代接入已验证。

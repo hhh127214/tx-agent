@@ -27,6 +27,15 @@ class DemoWebHandler(BaseHTTPRequestHandler):
         if parsed.path == "/health":
             self._json({"status": "ok", "service": "yuanbao-demo-web"})
             return
+        if parsed.path == "/api/settings/notification":
+            self._json(
+                {
+                    "status": "ok",
+                    "notification_enabled": self.state.notification_enabled,
+                    "source": "demo_backend_api",
+                }
+            )
+            return
         if parsed.path == "/login":
             self._html("Login", "<h1>元宝 Demo 登录</h1><button id='login'>登录</button>")
             return

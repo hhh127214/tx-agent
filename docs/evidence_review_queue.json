@@ -1,0 +1,182 @@
+{
+  "unknown_result": {
+    "task_id": "task-e17fbd18",
+    "case_id": "case-review-evidence-001",
+    "status": "UNKNOWN",
+    "reason": "VLM无法可靠判断页面状态或断言结果",
+    "trace": {
+      "trace_id": "trace-9cfde4c4",
+      "actions": [
+        {
+          "observe": "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png",
+          "think": "VLM识别页面并寻找语义目标: ??????????????????????",
+          "plan": "执行意图: understand_and_execute",
+          "act": "understand_and_execute",
+          "verify": "完成自然语言描述的用户任务",
+          "mode": "vision_based_vlm",
+          "confidence": 0.42,
+          "page_changed_detected": false,
+          "replan_attempt": 1
+        }
+      ],
+      "screenshots": [
+        "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png"
+      ],
+      "logs": [
+        "GUI Agent 通过VLM视觉语义目标执行，未依赖 XPath/ResourceId/坐标"
+      ],
+      "confidence": 0.42
+    },
+    "duration_seconds": 0.0031,
+    "confidence": 0.42,
+    "writeback_target": "ci_cd",
+    "metadata": {
+      "plan_id": "plan-case-review-evidence-001",
+      "resource": {
+        "type": "device",
+        "id": "device-1"
+      },
+      "raw_text": "??????????????????????",
+      "conversion": "llm_planned_vision_based_semantic_plan",
+      "planner_provider": "mock_semantic_llm",
+      "prompt_version": "case-planning-v2",
+      "planner_confidence": 0.7,
+      "planner_reasoning_summary": "基于语义概念映射模拟 LLM 对模糊表达、动作意图和断言目标的规划。",
+      "extracted_entities": {
+        "concepts": [],
+        "matched_aliases": {}
+      },
+      "pages": [],
+      "fallback_strategy": [
+        "目标入口不可见时滚动查找",
+        "页面跳转失败时基于 Page Graph 重新规划路径",
+        "控件名称不一致时使用同义词和历史执行经验匹配",
+        "断言低置信度时输出 UNKNOWN 并进入人工复核"
+      ],
+      "need_human_review": true,
+      "force_status": "UNKNOWN",
+      "vision_confidence": 0.42,
+      "scheduler_policy": {
+        "resource_quota": 0.15,
+        "concurrency": 10,
+        "allow_queue": true,
+        "allow_preempt": true,
+        "execution_window": "on_ci_build",
+        "strategy": "fast_feedback_first"
+      },
+      "writeback_target": "ci_cd",
+      "replan_triggered": true,
+      "replan_attempt": 1,
+      "last_retry_reason": "VLM无法可靠判断页面状态或断言结果",
+      "analysis": {
+        "category": "AGENT_UNABLE_TO_JUDGE",
+        "reason": "VLM无法可靠判断页面状态或断言结果"
+      }
+    }
+  },
+  "queue_before_review": {
+    "pending_count": 1,
+    "resolved_count": 0,
+    "items": [
+      {
+        "review_id": "review-task-e17fbd18",
+        "review_status": "RESOLVED",
+        "task_id": "task-e17fbd18",
+        "case_id": "case-review-evidence-001",
+        "reason": "VLM无法可靠判断页面状态或断言结果",
+        "trace_id": "trace-9cfde4c4",
+        "screenshots": [
+          "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png"
+        ],
+        "actions": [
+          {
+            "observe": "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png",
+            "think": "VLM识别页面并寻找语义目标: ??????????????????????",
+            "plan": "执行意图: understand_and_execute",
+            "act": "understand_and_execute",
+            "verify": "完成自然语言描述的用户任务",
+            "mode": "vision_based_vlm",
+            "confidence": 0.42,
+            "page_changed_detected": false,
+            "replan_attempt": 1
+          }
+        ],
+        "confidence": 0.42,
+        "created_at": 1781971526.7875845,
+        "suggested_action": "人工查看截图、trace 和原因后确认最终 PASS / FAIL / UNKNOWN",
+        "final_status": "FAIL",
+        "reviewer": "human_tester",
+        "review_note": "??????? trace ???????????",
+        "resolved_at": 1781971526.7875845
+      }
+    ]
+  },
+  "resolved_review": {
+    "review_id": "review-task-e17fbd18",
+    "review_status": "RESOLVED",
+    "task_id": "task-e17fbd18",
+    "case_id": "case-review-evidence-001",
+    "reason": "VLM无法可靠判断页面状态或断言结果",
+    "trace_id": "trace-9cfde4c4",
+    "screenshots": [
+      "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png"
+    ],
+    "actions": [
+      {
+        "observe": "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png",
+        "think": "VLM识别页面并寻找语义目标: ??????????????????????",
+        "plan": "执行意图: understand_and_execute",
+        "act": "understand_and_execute",
+        "verify": "完成自然语言描述的用户任务",
+        "mode": "vision_based_vlm",
+        "confidence": 0.42,
+        "page_changed_detected": false,
+        "replan_attempt": 1
+      }
+    ],
+    "confidence": 0.42,
+    "created_at": 1781971526.7875845,
+    "suggested_action": "人工查看截图、trace 和原因后确认最终 PASS / FAIL / UNKNOWN",
+    "final_status": "FAIL",
+    "reviewer": "human_tester",
+    "review_note": "??????? trace ???????????",
+    "resolved_at": 1781971526.7875845
+  },
+  "queue_after_review": {
+    "pending_count": 0,
+    "resolved_count": 1,
+    "items": [
+      {
+        "review_id": "review-task-e17fbd18",
+        "review_status": "RESOLVED",
+        "task_id": "task-e17fbd18",
+        "case_id": "case-review-evidence-001",
+        "reason": "VLM无法可靠判断页面状态或断言结果",
+        "trace_id": "trace-9cfde4c4",
+        "screenshots": [
+          "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png"
+        ],
+        "actions": [
+          {
+            "observe": "runtime_artifacts/screenshots/task-e17fbd18/step-1-observe.png",
+            "think": "VLM识别页面并寻找语义目标: ??????????????????????",
+            "plan": "执行意图: understand_and_execute",
+            "act": "understand_and_execute",
+            "verify": "完成自然语言描述的用户任务",
+            "mode": "vision_based_vlm",
+            "confidence": 0.42,
+            "page_changed_detected": false,
+            "replan_attempt": 1
+          }
+        ],
+        "confidence": 0.42,
+        "created_at": 1781971526.7875845,
+        "suggested_action": "人工查看截图、trace 和原因后确认最终 PASS / FAIL / UNKNOWN",
+        "final_status": "FAIL",
+        "reviewer": "human_tester",
+        "review_note": "??????? trace ???????????",
+        "resolved_at": 1781971526.7875845
+      }
+    ]
+  }
+}

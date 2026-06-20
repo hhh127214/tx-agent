@@ -1,0 +1,57 @@
+{
+  "summary": {
+    "business_trace_passed": true,
+    "business_trace_id": "notification-settings-e2e",
+    "chain": [
+      "natural_language_gui_case",
+      "gui_agent_visual_execution",
+      "backend_api_state_query",
+      "unified_pass_fail_decision"
+    ]
+  },
+  "tasks": {
+    "gui": "task-3a457a30",
+    "backend": "task-cd1d3ee9"
+  },
+  "unified_decision": "PASS",
+  "results": [
+    {
+      "task_id": "task-3a457a30",
+      "case_id": "business-trace-gui-notification-001",
+      "status": "PASS",
+      "trace_id": "trace-88c753ef",
+      "trace_stage": "gui_turn_off_notification",
+      "execution_mode": "plan-business-trace-gui-notification-001",
+      "api_actions": []
+    },
+    {
+      "task_id": "task-cd1d3ee9",
+      "case_id": "business-trace-api-notification-001",
+      "status": "PASS",
+      "trace_id": "trace-c533faf6",
+      "trace_stage": "backend_verify_notification_state",
+      "execution_mode": "BACKEND_API_AUTOMATION",
+      "api_actions": [
+        {
+          "name": "health_check",
+          "url": "http://127.0.0.1:58730/health",
+          "passed": true,
+          "response_json": {
+            "status": "ok",
+            "service": "yuanbao-demo-web"
+          }
+        },
+        {
+          "name": "notification_state",
+          "url": "http://127.0.0.1:58730/api/settings/notification",
+          "passed": true,
+          "response_json": {
+            "status": "ok",
+            "notification_enabled": false,
+            "source": "demo_backend_api"
+          }
+        }
+      ]
+    }
+  ]
+}

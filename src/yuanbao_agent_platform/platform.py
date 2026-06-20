@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from time import time
 from typing import Any, Dict, Iterable, List
+from urllib import request
 
 from yuanbao_agent_platform.acceptance import AcceptanceReporter
 from yuanbao_agent_platform.adapters import InternalAdapterRegistry
@@ -47,6 +49,8 @@ class YuanbaoTestingPlatform:
         self.adapters = InternalAdapterRegistry()
         self.metrics = MetricsCollector()
         self.quarantine = QuarantineManager()
+        self.review_queue: List[Dict[str, Any]] = []
+        self._review_index: Dict[str, Dict[str, Any]] = {}
         self.scheduler = ExecutionScheduler(
             router=router,
             resource_manager=ResourceManager(devices=devices, containers=containers),
@@ -294,6 +298,7 @@ class YuanbaoTestingPlatform:
         results = self.scheduler.run_until_idle_concurrent(max_workers=8)
         self._persist_results(results)
         result = next(item for item in reversed(results) if item.task_id == task.task_id)
+        self._enqueue_review_if_unknown(result)
         writeback = self._writeback_result(result)
         return BugRegressionResult(
             bug_id=bug.bug_id,
@@ -318,7 +323,85 @@ class YuanbaoTestingPlatform:
         self._persist_results(results)
         for result in results:
             self._writeback_result(result)
+        self._enqueue_latest_unknown_reviews(results)
         return [asdict(result) for result in results]
+
+    def run_same_business_trace_demo(self) -> Dict[str, Any]:
+        with run_demo_web_server() as base_url:
+            gui_task = self.submit_manual_case(
+                Scenario.DEV_SELF_TEST,
+                "business-trace-gui-notification-001",
+                "登录后进入我的页面，点击设置，关闭通知开关，验证关闭状态保留。",
+                TriggerType.CI,
+                metadata={
+                    "base_url": base_url,
+                    "business_trace_id": "notification-settings-e2e",
+                    "trace_stage": "gui_turn_off_notification",
+                    "ci_blocking": True,
+                    "writeback_target": "ci_cd",
+                },
+            )
+            gui_results = self.run_queued_tasks(max_workers=1)
+
+            request.urlopen(f"{base_url}/settings/notification/off", data=b"", timeout=5).read()
+
+            backend_task = self.submit_backend_api_case(
+                Scenario.DEV_SELF_TEST,
+                "business-trace-api-notification-001",
+                "查询通知设置后台接口，验证 notification_enabled 为 false。",
+                base_url,
+                TriggerType.CI,
+                metadata={
+                    "base_url": base_url,
+                    "business_trace_id": "notification-settings-e2e",
+                    "trace_stage": "backend_verify_notification_state",
+                    "ci_blocking": True,
+                    "writeback_target": "ci_cd",
+                },
+            )
+            backend_results = self.run_queued_tasks(max_workers=1)
+            ordered_results = gui_results + backend_results
+            passed = all(item["status"] == ResultStatus.PASS.value for item in ordered_results)
+            return {
+                "summary": {
+                    "business_trace_passed": passed,
+                    "business_trace_id": "notification-settings-e2e",
+                    "chain": [
+                        "natural_language_gui_case",
+                        "gui_agent_visual_execution",
+                        "backend_api_state_query",
+                        "unified_pass_fail_decision",
+                    ],
+                },
+                "base_url": base_url,
+                "tasks": {"gui": gui_task.task_id, "backend": backend_task.task_id},
+                "results": ordered_results,
+                "unified_decision": "PASS" if passed else "FAIL",
+            }
+
+    def review_queue_snapshot(self) -> Dict[str, Any]:
+        pending = [item for item in self.review_queue if item["review_status"] == "PENDING_REVIEW"]
+        resolved = [item for item in self.review_queue if item["review_status"] == "RESOLVED"]
+        return {
+            "pending_count": len(pending),
+            "resolved_count": len(resolved),
+            "items": list(self.review_queue),
+        }
+
+    def resolve_review_item(self, review_id: str, final_status: str, reviewer: str, note: str) -> Dict[str, Any]:
+        if review_id not in self._review_index:
+            raise ValueError(f"review item not found: {review_id}")
+        item = self._review_index[review_id]
+        item.update(
+            {
+                "review_status": "RESOLVED",
+                "final_status": final_status,
+                "reviewer": reviewer,
+                "review_note": note,
+                "resolved_at": time(),
+            }
+        )
+        return dict(item)
 
     def run_demo(self) -> Dict[str, Any]:
         manual = self.convert_manual_case(
@@ -464,6 +547,7 @@ class YuanbaoTestingPlatform:
         ]
 
     def _backend_api_requests_from_text(self, base_url: str, text: str) -> List[Dict[str, Any]]:
+        normalized_text = text.lower()
         requests = [
             {
                 "name": "health_check",
@@ -483,6 +567,16 @@ class YuanbaoTestingPlatform:
                     "expected_json": {"status": "submitted"},
                 }
             )
+        if any(keyword in normalized_text for keyword in ["notification", "通知", "开关", "notification_enabled"]):
+            requests.append(
+                {
+                    "name": "notification_state",
+                    "method": "GET",
+                    "url": f"{base_url}/api/settings/notification",
+                    "expected_status": 200,
+                    "expected_json": {"status": "ok", "notification_enabled": False},
+                }
+            )
         return requests
 
     def _automation_counts_for_results(self, results: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -493,6 +587,35 @@ class YuanbaoTestingPlatform:
             automation_type = task.case.automation_type.value if task else "UNKNOWN"
             counts[automation_type] = counts.get(automation_type, 0) + 1
         return counts
+
+    def _enqueue_latest_unknown_reviews(self, results) -> None:
+        latest_by_task = {}
+        for result in results:
+            latest_by_task[result.task_id] = result
+        for result in latest_by_task.values():
+            self._enqueue_review_if_unknown(result)
+
+    def _enqueue_review_if_unknown(self, result) -> None:
+        if result.status != ResultStatus.UNKNOWN:
+            return
+        review_id = f"review-{result.task_id}"
+        if review_id in self._review_index:
+            return
+        item = {
+            "review_id": review_id,
+            "review_status": "PENDING_REVIEW",
+            "task_id": result.task_id,
+            "case_id": result.case_id,
+            "reason": result.reason,
+            "trace_id": result.trace.trace_id,
+            "screenshots": result.trace.screenshots,
+            "actions": result.trace.actions,
+            "confidence": result.confidence,
+            "created_at": time(),
+            "suggested_action": "人工查看截图、trace 和原因后确认最终 PASS / FAIL / UNKNOWN",
+        }
+        self.review_queue.append(item)
+        self._review_index[review_id] = item
 
     def _bug_conclusion(self, status: ResultStatus, bug: BugReport) -> str:
         if status == ResultStatus.PASS:

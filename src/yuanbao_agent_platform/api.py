@@ -58,6 +58,9 @@ class YuanbaoApi:
         if method == "GET" and path == "/storage/stats":
             return 200, self._platform.store.stats()
 
+        if method == "GET" and path == "/reviews":
+            return 200, self._platform.review_queue_snapshot()
+
         if method == "POST" and path == "/scheduler/recover":
             return 200, self._platform.recover_pending_tasks()
 
@@ -101,6 +104,9 @@ class YuanbaoApi:
         if method == "POST" and path == "/demo/mixed-automation":
             return 200, self._platform.run_mixed_automation_demo()
 
+        if method == "POST" and path == "/demo/business-trace":
+            return 200, self._platform.run_same_business_trace_demo()
+
         if method == "POST" and path == "/ci/gate":
             return 200, self._platform.run_ci_gate(
                 pipeline_id=payload["pipeline_id"],
@@ -108,6 +114,14 @@ class YuanbaoApi:
                 artifact=payload.get("artifact", ""),
                 build_status=payload.get("build_status", "success"),
                 base_url=payload.get("base_url"),
+            )
+
+        if method == "POST" and path == "/reviews/resolve":
+            return 200, self._platform.resolve_review_item(
+                review_id=payload["review_id"],
+                final_status=payload["final_status"],
+                reviewer=payload.get("reviewer", "manual_reviewer"),
+                note=payload.get("note", ""),
             )
 
         if method == "POST" and path == "/webhooks/bug-status-changed":

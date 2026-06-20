@@ -134,6 +134,48 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
         self.assertIn("device", resources)
         self.assertIn("container", resources)
 
+    def test_same_business_trace_links_gui_action_to_backend_state_assertion(self):
+        result = self.platform.run_same_business_trace_demo()
+
+        self.assertTrue(result["summary"]["business_trace_passed"])
+        self.assertEqual(result["unified_decision"], "PASS")
+        self.assertEqual(result["summary"]["chain"][0], "natural_language_gui_case")
+        self.assertEqual(result["summary"]["chain"][-1], "unified_pass_fail_decision")
+        backend_result = result["results"][-1]
+        self.assertEqual(backend_result["metadata"]["execution_mode"], "BACKEND_API_AUTOMATION")
+        notification_actions = [
+            action
+            for action in backend_result["trace"]["actions"]
+            if action["name"] == "notification_state"
+        ]
+        self.assertEqual(notification_actions[0]["response_json"]["notification_enabled"], False)
+
+    def test_unknown_result_enters_review_queue_and_can_be_resolved(self):
+        self.platform.submit_manual_case(
+            Scenario.DEV_SELF_TEST,
+            "case-review-unknown-001",
+            "登录后进入我的页面，点击设置，验证页面状态。",
+            TriggerType.CI,
+            metadata={"force_status": "UNKNOWN", "vision_confidence": 0.42},
+        )
+
+        results = self.platform.run_queued_tasks(max_workers=1)
+        self.assertEqual(results[-1]["status"], ResultStatus.UNKNOWN.value)
+
+        queue = self.platform.review_queue_snapshot()
+        self.assertEqual(queue["pending_count"], 1)
+        review_id = queue["items"][0]["review_id"]
+
+        resolved = self.platform.resolve_review_item(
+            review_id=review_id,
+            final_status=ResultStatus.FAIL.value,
+            reviewer="tester",
+            note="人工查看 trace 后确认页面状态异常",
+        )
+        self.assertEqual(resolved["review_status"], "RESOLVED")
+        self.assertEqual(resolved["final_status"], ResultStatus.FAIL.value)
+        self.assertEqual(self.platform.review_queue_snapshot()["resolved_count"], 1)
+
     def test_ci_gate_blocks_on_failed_build_and_runs_ui_plus_api_on_success(self):
         blocked = self.platform.run_ci_gate(
             pipeline_id="pipeline-blocked",
