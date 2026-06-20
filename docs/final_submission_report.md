@@ -2,7 +2,7 @@
 
 ## 0. 项目结果总览
 
-本项目围绕“元宝测试 Agent 建设”完成了一个可运行 MVP。目标不是传统 `XPath / ResourceId / 坐标` 驱动的自动化测试平台，而是自然语言驱动的 **GUI Agent UI 自动化 + 后台接口自动化统一测试执行平台**：用户输入自然语言手工用例、PRD 或 BUG 复现步骤，平台内部转换为 IR / AgentPlan / API Case，再统一调度 GUI Agent 和 Backend API 自动化执行、验证和结果回写。
+本项目围绕“元宝测试 Agent 建设”完成了一个可运行 MVP。目标不是传统 `XPath / ResourceId / 坐标` 驱动的自动化测试平台，而是自然语言驱动的 **GUI Agent UI 自动化 + 后台接口自动化统一测试执行平台**：用户输入自然语言手工用例、PRD 或 BUG 复现步骤，平台内部转换为 IR / AgentPlan / API Case，再统一调度 GUI Agent 和 Backend API 自动化执行、验证和结果回写。老师有空的话可以上仓库看看我的源代码，怕这份结果文档写得不够详细，已经尽力写了，导师辛苦了！
 
 仓库地址：`https://github.com/hhh127214/tx-agent.git`
 
@@ -190,8 +190,8 @@ GitHub Actions 执行通过证据：
 1. 输入 PRD 文本，当前真实替代输入为 `docs/prd/external_demo_prd.md`。
 2. `PRDTestDesignAgent` 提取功能点、关键词、边界条件。
 3. 使用混合检索召回知识库：BM25 关键词检索 + embedding 风格语义检索。
-4. 知识库来源包括历史用例、历史 BUG、测试规范、页面知识。
-5. 根据 PRD 和召回结果生成测试点。
+4. 知识库接口支持历史用例、历史 BUG、产品规范、测试规范、页面知识和接口文档；当前版本用本地样例知识库验证接口形态，后续可替换为公司知识库服务。
+5. 根据 PRD 和召回结果生成测试点，并可将测试点继续提交为需求测试任务进入调度执行。
 6. 输出结构化 JSON，包括 `feature`、`keywords`、`retrieved_knowledge`、`test_points`、`coverage`。
 
 ### 4.2 最终结果
@@ -227,7 +227,7 @@ PRD 输入证据：
 | 题目要求 | 实现结果 |
 |---|---|
 | 完整 pipeline | 已实现 PRD → Keyword Extraction → Hybrid Retrieval → Test Point Generation |
-| 使用知识库召回 | 已实现历史用例、历史 BUG、测试规范召回 |
+| 使用知识库召回 | 已实现历史用例、历史 BUG、产品规范、测试规范、接口文档等来源的召回接口 |
 | 生成测试点 | 已输出功能、边界、异常场景测试点 |
 | JSON 结构化输出 | 已实现结构化 JSON |
 
@@ -240,8 +240,8 @@ PRD 输入证据：
 | 方向 | 业务案例 | 外部系统 / 输入源 | 最终结果 |
 |---|---|---|---|
 | 集成测试批量执行 | 搜索 `Yuanbao` 并验证结果列表 | 本地真实 HTTP Web Demo | ✅ 跑通 |
-| 开发自测 | Push 后自动验证通知设置链路 + Backend API 冒烟 | GitHub Actions | ✅ 跑通 |
-| 需求测试 | 通知设置 PRD 生成测试点 | Markdown PRD 文件 | ✅ 跑通 |
+| 开发自测 | Push 后自动验证通知设置链路 + Backend API 冒烟，并作为 CI gate 执行 | GitHub Actions | ✅ 已执行测试 |
+| 需求测试 | 通知设置 PRD 生成测试点后提交需求测试任务，并由调度器执行 | Markdown PRD 文件 | ✅ 已执行测试 |
 | BUG 回归 | 通知开关关闭后重新进入设置页状态保持 | GitHub Issues | ✅ 跑通 |
 
 接口汇总证据：
@@ -321,8 +321,8 @@ UNKNOWN 人工复核完成证据：
 本项目已完成：
 
 - 集成测试：搜索业务。
-- 开发自测：通知设置 GUI 链路 + Backend API 冒烟。
-- 需求测试：通知设置 PRD。
+- 开发自测：通知设置 GUI 链路 + Backend API 冒烟，已在 CI gate 中执行测试。
+- 需求测试：通知设置 PRD 先生成测试点，再提交 `REQUIREMENT_TEST` 任务并执行。
 - BUG 回归：通知开关状态保持缺陷。
 - 混合调度：同一批次执行 `GUI_AGENT` 与 `BACKEND_AUTOMATION`。
 - 同一链路：GUI 操作后由 Backend API 复核状态。
@@ -389,7 +389,8 @@ UNKNOWN 人工复核完成证据：
 - ✅ 自然语言后台接口用例转换与真实 HTTP API 断言已实现。
 - ✅ 同一业务链路 GUI 操作 + Backend 状态复核 trace 已实现。
 - ✅ BUG 回归闭环已实现。
-- ✅ PRD 自动生成测试点已实现。
+- ✅ PRD 自动生成测试点已实现，知识库召回接口支持历史用例、历史缺陷、产品规范和接口文档。
+- ✅ 开发自测和需求测试均已进入调度执行，不是只生成测试。
 - ✅ `PASS / FAIL / UNKNOWN` 三态结果已实现。
 - ✅ `UNKNOWN` 人工复核队列与人工确认闭环已实现。
 - ✅ 页面改版 / 复现路径失效后的重新观察、重新规划、重跑机制已设计。

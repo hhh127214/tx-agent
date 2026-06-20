@@ -92,6 +92,8 @@ class YuanbaoTestingPlatformTest(unittest.TestCase):
         self.assertEqual(result["metadata"]["prompt_version"], "prd-test-design-v2")
         self.assertGreaterEqual(len(result["test_points"]), 3)
         self.assertIn("retrieved_knowledge", result)
+        knowledge_source_types = {item["source_type"] for item in result["retrieved_knowledge"]}
+        self.assertIn("INTERFACE_DOC", knowledge_source_types)
         automation_types = {point["automation_type"] for point in result["test_points"]}
         self.assertIn("GUI_AGENT", automation_types)
         self.assertIn("BACKEND_AUTOMATION", automation_types)

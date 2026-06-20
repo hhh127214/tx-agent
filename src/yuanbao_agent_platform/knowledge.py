@@ -147,6 +147,17 @@ def default_knowledge_base() -> HybridKnowledgeBase:
                 tags=["数据一致性", "后台自动化", "持久化"],
             ),
             KnowledgeChunk(
+                chunk_id="API-DOC-NOTIFICATION-001",
+                source_type="INTERFACE_DOC",
+                title="通知设置状态查询接口文档",
+                content=(
+                    "GET /api/settings/notification 返回通知开关状态，响应字段包含 status、"
+                    "notification_enabled 和 source。通知设置 PRD 或 BUG 回归执行后，需要用该接口"
+                    "复核 GUI 操作后的后台持久化状态。"
+                ),
+                tags=["接口文档", "通知", "设置", "Backend API", "前后台一致性"],
+            ),
+            KnowledgeChunk(
                 chunk_id="CASE-LOGIN-001",
                 source_type="HISTORY_CASE",
                 title="登录后进入我的页面",
