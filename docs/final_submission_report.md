@@ -363,7 +363,21 @@ UNKNOWN 人工复核完成证据：
 
 ---
 
-## 7. 最终结论
+## 7. 项目边界说明
+
+当前项目已经完成统一测试执行平台的工程闭环，但有两类能力受限于外部权限，需要说明边界：
+
+| 能力 | 当前实现 | 后续真实接入方式 |
+|---|---|---|
+| GUI Agent 视觉执行 | 使用 `MockVisionAgentClient` 模拟公司已具备的 Vision-Based GUI Agent 能力，接口层保留 `VisionAgentClient` 协议 | 后续拿到办公权限后，将 `VisionAgentClient` 替换为公司真实 GUI Agent / VLM 服务 endpoint |
+| Backend API 自动化 | 使用本地真实 HTTP Demo 服务验证接口请求、响应断言和结果回写链路 | 后续接入元宝真实微服务时，替换 `base_url`、鉴权、请求参数和断言配置 |
+| 真实业务系统 | 使用本地 Web Demo、GitHub Actions、GitHub Issues、Markdown PRD 做外部真实替代验证 | 后续根据导师分配的具体业务任务，替换为元宝测试环境、公司 CI/CD、缺陷系统和需求系统 |
+
+因此，当前版本不声称已经接入公司内部真实 VLM 或元宝生产微服务；它证明的是平台主链路、调度能力、混合执行能力、CI gate、BUG 回归和结果回写已经工程化跑通，并且关键接入点已经 Adapter / Protocol 化。
+
+---
+
+## 8. 最终结论
 
 本项目完成了“元宝 GUI Agent + Backend API 统一测试执行平台 MVP”的工程实现，四个考题均有对应代码、流程和结果证据。
 
